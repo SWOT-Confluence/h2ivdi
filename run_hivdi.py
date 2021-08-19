@@ -25,6 +25,31 @@ from HiVDI.processors.confluence_case_processors import ConfluenceReachCaseProce
 
 FILLVALUE = --999999999999
 
+def create_empty_estimates_dict(reach_id):
+    """Create an empty estimates dictionnary.
+
+    Parameters
+    ----------
+    reach_id: int
+        Unique reach identifier
+    
+    Returns
+    -------
+    list
+        List of estimates dictionaries with empty data
+    """
+    return {"reach_id" : reach_id,
+            "x" : np.array([np.nan]),
+            "alpha": np.array([np.nan]),
+            "beta": np.array([np.nan]),
+            "A0" : np.array([np.nan]),
+            "t" : np.array([np.nan]),
+            "Q": np.array([np.nan]),
+            "flags": (0,0),
+            "exception" : 0,
+            "status" : 0}
+
+# DEPRECATED
 def create_empty_estimates(reach_id):
     """Create an empty estimates list for invalid reach data.
 
@@ -35,7 +60,7 @@ def create_empty_estimates(reach_id):
     
     Returns
     -------
-    estimates: list
+    list
         List of estimates dictionaries with empty data
     """
     return [{
@@ -48,7 +73,6 @@ def create_empty_estimates(reach_id):
         "Q": np.array([np.nan]),
         "flags": (0,0)
     }]
-    
 
 def get_reachids(reachjson):
     """Extract and return a list of reach identifiers from json file.
@@ -72,13 +96,13 @@ def get_reachids(reachjson):
 
 
 def get_reach_dataset(reachjson):
-    """Extract and return data associated with a reach identifier from JSON file
-    and AWS_BATCH_JOB_ARRAY_INDEX.
+    """Extract and return dataset associated to a reach from json file and AWS_BATCH_JOB_ARRAY_INDEX
     
     Parameters
     ----------
     reachjson : str
         Path to the file that contains the list of reaches to process
+    
         
     Returns
     -------
@@ -128,6 +152,9 @@ def reaches_batch_process(reach_datasets, inputdir, rundir, chain="classic", cle
         sword_file = reach_dataset["sword"]
 
         logger.section_start("Process reach %s" % reachid)
+        
+        # Create empty estimates dictionnary
+        estimate = create_empty_estimates_dict(reachid)
 
         # Create parameters dictionary
         parameters_dict = {"case_name" : "%s" % reachid,
@@ -144,29 +171,64 @@ def reaches_batch_process(reach_datasets, inputdir, rundir, chain="classic", cle
                            "run_dir" : rundir}
         
         # Create processor
-        case_processor = ConfluenceReachCaseProcessor(parameters_dict, debug=False)
+        valid_run = True
+        try:
+            case_processor = ConfluenceReachCaseProcessor(parameters_dict, debug=False)
+        except Exception as err:
+            logger.error(err)
+            estimate["exception"] = 1
+            valid_run = False
+            
+        # Handle case with non loaded observations
+        if valid_run is True and case_processor.obs_validity == -9:
+            valid_run = False
         
+        # Update estimates dict with time occurences
+        if valid_run is True:
+            estimate["t"] = case_processor.obs.t / 86400.0
+            estimate["Q"] = ones(case_processor.obs.t.size) * np.nan
+        
+        # Handle case with non valid observations
+        if valid_run is True and case_processor.obs_validity == -1:
+            valid_run = False
+
         # Run processor
-        case_processor.run(reset=1)
+        if valid_run is True:
+            try:
+                case_processor.run(reset=1)
+            except Exception as err:
+                logger.error(err)
+                estimate["exception"] = 1
+                valid_run = False
         
         # Post-process results to get estimates
-        x, alpha, beta, A0, t, Q, flags = case_processor.post(write_file=False)
+        if valid_run is True:
+            try:
+                x, alpha, beta, A0, t, Q, flags = case_processor.post(write_file=False)
+                estimate["x"] = x
+                estimate["alpha"] = alpha
+                estimate["beta"] =  beta
+                estimate["A0"] =  A0
+                estimate["Q"] =  Q
+                estimate["flags"] = flags
+                estimate["status"] = 1
+            except Exception as err:
+                logger.error(err)
+                estimate["exception"] = 1
+                valid_run = False
+        
+        # Append estimates dictionary in list
+        estimates.append(estimate)
 
         # Clean run_dir
         if clean:
-            shutil.rmtree(os.path.join(rundir, "%s" % reachid))
-            
-        # Store estimates for this reach
-        estimates.append({"reach_id" : reachid,
-                          "x": x,
-                          "alpha" : alpha,
-                          "beta" : beta,
-                          "A0" : A0,
-                          "t" : t / 86400 + 1,
-                          "Q" : Q,
-                          "flags" : flags})
+            if os.path.isdir(os.path.join(rundir, "%s" % reachid)):
+                shutil.rmtree(os.path.join(rundir, "%s" % reachid))
 
-        logger.section_end("Process reach %s" % reachid)
+        if valid_run is True:
+            logger.section_end("Process reach %s ( SUCCESS )" % reachid)
+        else:
+            logger.section_end("Process reach %s ( FAILED )" % reachid)
         
     return estimates
 
@@ -188,8 +250,10 @@ def write_output(estimates, outputdir):
         
         # Retrieve reachid, days and flags
         reachid = estimate["reach_id"]
-        days = estimate["t"]
+        t = estimate["t"]
         flags = estimate["flags"]
+        exception = estimate["exception"]
+        status = estimate["status"]
 
         # Create output dataset
         logger.info("Output estimates for reach %s" % reachid)
@@ -200,18 +264,20 @@ def write_output(estimates, outputdir):
         dataset.setncatts({"title" : "HIVDI output for reach ID: %s" % reachid,
                            "production_date" : datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                            "reach_id" : "%s" % reachid,
+                           "exception" : exception,
                            "obs_validity" : flags[0],
-                           "VDA_status" : flags[1]})
+                           "VDA_status" : flags[1],
+                           "status" : status})
 
         # Create dimensions
         dataset.createDimension("nchar", 12)
-        dataset.createDimension("nt", len(days))
+        dataset.createDimension("nt", len(t))
         
         # Create global variables
         nt = dataset.createVariable("nt", "i4", ("nt",))
         nt.units = "day"
         nt.long_name = "nt"
-        nt[:] = days
+        nt[:] = t
 
         # Create group
         reach_group = dataset.createGroup("reach")
@@ -223,14 +289,14 @@ def write_output(estimates, outputdir):
             reach_id[i] = reach_id_str[i]
         A0 = reach_group.createVariable("A0", "f8", (), fill_value=FILLVALUE)
         A0.long_name = "unobserved cross-sectional area"
-        A0.units = "m^2" 
-        A0[0] = estimate["A0"][0]
+        A0.units = "m^2"
+        A0[0] = np.nan_to_num(estimate["A0"][0], copy=True, nan=FILLVALUE)
         alpha = reach_group.createVariable("alpha", "f8", (), fill_value=FILLVALUE)
         alpha.long_name = "coefficient for the Strickler power law"
         alpha.units = "m^(1/3)/s" 
-        alpha[0] = estimate["alpha"][0]
+        alpha[0] = np.nan_to_num(estimate["alpha"][0], copy=True, nan=FILLVALUE)
         beta = reach_group.createVariable("beta", "f8", (), fill_value=FILLVALUE)
-        beta[0] = estimate["beta"][0]
+        beta[0] = np.nan_to_num(estimate["beta"][0], copy=True, nan=FILLVALUE)
         beta.long_name = "exponent for the Strickler power law"
         beta.units = "-" 
         Q = reach_group.createVariable("Q", "f8", ("nt",), fill_value=FILLVALUE)
@@ -277,11 +343,10 @@ if __name__ == "__main__":
     else:
         log_file = None
     if "HIVDI_LOG_LEVEL" in os.environ:
-        log_file = os.environ["HIVDI_LOG_LEVEL"]
+        log_level = os.environ["HIVDI_LOG_LEVEL"]
     else:
         log_level = "info"
     logger.setup(log_level, log_file)
-    
 
     # Setup logging for PyMC3
     pymc3_logger = logging.getLogger("pymc3")
@@ -295,8 +360,7 @@ if __name__ == "__main__":
     except Exception as err:
         track = traceback.format_exc()
         logger.error(track)
-        # raise
-        estimates = create_empty_estimates(reach_dataset["reach_id"])
+        raise
     logger.section_end("Process CONFLUENCE batch")
     
     # Output estimates
@@ -308,4 +372,3 @@ if __name__ == "__main__":
         logger.error(track)
         raise
     logger.section_end("Output CONFLUENCE batch estimates")
-
