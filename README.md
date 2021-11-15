@@ -1,6 +1,6 @@
-# hivdi-docker
+# h2ivdi-docker
 
-HiVDI docker container hosted on AWS ECR used to create containers in the cloud.
+H2iVDI (formerly HiVDI) docker container hosted on AWS ECR used to create containers in the cloud.
 
 # publishing disclaimer
 
