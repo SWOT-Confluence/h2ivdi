@@ -23,7 +23,7 @@ import numpy.ma as ma
 from HiVDI.core.utils.logging_utils import RichLogger, ServerLogger
 from HiVDI.processors.confluence_case_processors import ConfluenceReachCaseProcessor
 
-FILLVALUE = --999999999999
+FILLVALUE = -999999999999
 
 def create_empty_estimates_dict(reach_id):
     """Create an empty estimates dictionnary.
