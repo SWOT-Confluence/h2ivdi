@@ -326,8 +326,13 @@ if __name__ == "__main__":
                         choices=["classic", "surrogate"],
                         help="Chain to use")
     args = parser.parse_args()
-    all_reach_jsons = glob.glob(os.path.join(inputdir, 'reaches*'))
-    reachjson = all_reach_jsons[args.chunk]
+
+    if args.chunk is not None:
+        chunk = '_' + str(args.chunk)
+    else:
+        chunk = ''
+
+    reachjson = os.path.join(inputdir, f'reaches{chunk}.json')
     print('Processing', reachjson)
     reach_dataset = get_reach_dataset(reachjson)
     
