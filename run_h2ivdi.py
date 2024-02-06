@@ -12,6 +12,7 @@ import shutil
 import sys
 import traceback
 import warnings
+import glob
 
 # Third party imports
 from netCDF4 import Dataset
@@ -319,11 +320,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run HiVDI for Confluence")
     parser.add_argument("-reachjson", type=str, default="reaches.json",
                         help="File containing reaches list")
+    parser.add_argument("-chunk", type=int,
+                        help="Chunk to process")
     parser.add_argument("-chain", type=str, default="classic",
                         choices=["classic", "surrogate"],
                         help="Chain to use")
     args = parser.parse_args()
-    reachjson = os.path.join(inputdir, args.reachjson)
+
+    if args.chunk is not None:
+        chunk = '_' + str(args.chunk)
+    else:
+        chunk = ''
+
+    reachjson = os.path.join(inputdir, f'reaches{chunk}.json')
+    print('Processing', reachjson)
     reach_dataset = get_reach_dataset(reachjson)
     
     # Load log config
