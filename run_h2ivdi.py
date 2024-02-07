@@ -96,7 +96,7 @@ def get_reachids(reachjson):
     return data[index]["reach_id"]
 
 
-def get_reach_dataset(reachjson):
+def get_reach_dataset(index, reachjson):
     """Extract and return dataset associated to a reach from json file and AWS_BATCH_JOB_ARRAY_INDEX
     
     Parameters
@@ -111,10 +111,15 @@ def get_reach_dataset(reachjson):
         Reach dataset
     """
 
-    index = int(os.environ.get("AWS_BATCH_JOB_ARRAY_INDEX"))
     with open(reachjson) as jsonfile:
         data = json.load(jsonfile)
-    return data[index]
+
+    if index == -235:
+        i = int(os.environ.get("AWS_BATCH_JOB_ARRAY_INDEX"))
+    else:
+        i = index
+
+    return data[i]
 
 
 def reaches_batch_process(reach_datasets, inputdir, rundir, chain="classic", clean=True):
@@ -325,6 +330,8 @@ if __name__ == "__main__":
     parser.add_argument("-chain", type=str, default="classic",
                         choices=["classic", "surrogate"],
                         help="Chain to use")
+    parser.add_argument("-i", "--index", type=int,
+                        help="Index value to select reach to run on")
     args = parser.parse_args()
 
     if args.chunk is not None:
@@ -334,7 +341,7 @@ if __name__ == "__main__":
 
     reachjson = os.path.join(inputdir, f'reaches{chunk}.json')
     print('Processing', reachjson)
-    reach_dataset = get_reach_dataset(reachjson)
+    reach_dataset = get_reach_dataset(args.index, reachjson)
     
     # Load log config
     if "HIVDI_LOG_CONFIG" in os.environ:
