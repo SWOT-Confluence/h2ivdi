@@ -15,8 +15,8 @@ resource "aws_batch_job_definition" "generate_batch_jd_hivdi" {
       }
     },
     "resourceRequirements": [
-      {"type": "MEMORY", "value": "4096"},
-      {"type": "VCPU", "value": "2"}
+      {"type": "MEMORY", "value": "512"},
+      {"type": "VCPU", "value": "0.25"}
     ],
     "mountPoints": [
       {
