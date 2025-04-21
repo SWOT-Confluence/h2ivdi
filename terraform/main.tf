@@ -5,7 +5,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 4.0"
+      version = "~> 5.0"
     }
   }
 }
@@ -16,33 +16,10 @@ provider "aws" {
     tags = local.default_tags
   }
   region  = var.aws_region
-  profile = var.profile
 }
 
-# Data sources
 data "aws_caller_identity" "current" {}
 
-data "aws_cloudwatch_log_group" "cw_log_group" {
-  name = "/aws/batch/job/${var.prefix}-hivdi/"
-}
-
-data "aws_efs_file_system" "aws_efs_input" {
-  creation_token = "${var.prefix}-input"
-}
-
-data "aws_efs_file_system" "aws_efs_flpe" {
-  creation_token = "${var.prefix}-flpe"
-}
-
-data "aws_iam_role" "job_role" {
-  name = "${var.prefix}-batch-job-role"
-}
-
-data "aws_iam_role" "exe_role" {
-  name = "${var.prefix}-ecs-exe-task-role"
-}
-
-# Local variables
 locals {
   account_id = data.aws_caller_identity.current.account_id
   default_tags = length(var.default_tags) == 0 ? {
@@ -50,4 +27,13 @@ locals {
     environment : var.environment,
     version : var.app_version
   } : var.default_tags
+}
+
+module "confluence-hivdi" {
+  source      = "./modules/hivdi"
+  app_name    = var.app_name
+  app_version = var.app_version
+  aws_region  = var.aws_region
+  environment = var.environment
+  prefix      = var.prefix
 }

@@ -1,13 +1,12 @@
 variable "app_name" {
   type        = string
   description = "Application name"
-  default     = "generate"
+  default     = "confluence"
 }
 
 variable "app_version" {
-  type        = number
+  type        = string
   description = "The application version number"
-  default     = 0.1
 }
 
 variable "aws_region" {
@@ -29,9 +28,4 @@ variable "environment" {
 variable "prefix" {
   type        = string
   description = "Prefix to add to all AWS resources as a unique identifier"
-}
-
-variable "profile" {
-  type        = string
-  description = "Named profile to build infrastructure with"
 }
