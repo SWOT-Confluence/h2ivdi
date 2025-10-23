@@ -1,0 +1,55 @@
+[project]
+name = "H2iVDI"
+version = "1.0.0"
+authors = [
+  { name="Kevin Larnier", email="kevin.larnier@hydro-matters.fr" },
+]
+description = "H2iVDI (Hybrid Hierarchical Variational Discharge Inference)"
+readme = "README.md"
+dependencies = [
+    "arviz >= 0.17.0",
+    "colorlog >= 6.1.0",
+    "netCDF4 >= 1.6.0",
+    "matplotlib >= 3.6.0",
+    "numpy >= 1.20.0",
+    "scipy >= 1.5.4",
+    "pandas >= 2.1.0",
+    "piecewise_regression >= 1.5.0",
+    "pybind11 >= 2.12.1",
+    "tqdm >= 4.60.0",
+    "xarray >= 2023.1.0",
+]
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GPL-3.0 License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/DassHydro/H2iVDI"
+
+[build-system]
+requires = [
+    "setuptools>=42",
+    "pybind11>=2.10.0",
+]
+build-backend = "setuptools.build_meta"
+
+
+[tool.cibuildwheel]
+test-command = "python {project}/tests/test.py"
+test-skip = "*universal2:arm64"
+
+
+[tool.ruff]
+target-version = "py39"
+
+[tool.ruff.lint]
+extend-select = [
+  "B",   # flake8-bugbear
+  "I",   # isort
+  "PGH", # pygrep-hooks
+  "RUF", # Ruff-specific
+  "UP",  # pyupgrade
+]

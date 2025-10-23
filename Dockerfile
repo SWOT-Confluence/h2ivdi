@@ -1,17 +1,27 @@
-# Stage 0 - Create from hivdi:0.5c image
-FROM h2ivdi:0.5c as stage0
+# Stage 0 - Create from Python3.10 image
+FROM python:3.10-slim-buster as stage0
 
-# Stage 1 - Copy script for running algorithm (AWS pre-benchmark version)
+# Stage 1 - Instal C++ compiler
 FROM stage0 as stage1
-COPY run_h2ivdi.py /app/run_h2ivdi.py
+RUN apt-get update
+RUN apt install -y g++
 
-# Stage 2 - Execute algorithm
+# Stage 2 - Install code
 FROM stage1 as stage2
-LABEL version="0.5c" \
-	description="AWS H2iVDI algorithm." \
-	"confluence.contact"="ntebaldi@umass.edu" \
-	"algorithm.contact"="kevin.larnier@csgroup.eu"
-# Environment variable to enforce 20 iterations VDA+virtuals
-ENV VRT_ITERATIONS_COUNT 20
-# Entry point
-ENTRYPOINT  ["/usr/bin/python3", "/app/run_h2ivdi.py" ]
+RUN mkdir -p /app/H2iVDI
+COPY ./bin /app/H2iVDI/bin
+COPY ./H2iVDI /app/H2iVDI/H2iVDI
+#COPY ./sos_read /app/H2iVDI/sos_read
+COPY ./src /app/H2iVDI/src
+COPY ./pyproject.toml /app/H2iVDI/pyproject.toml
+COPY ./README.md /app/H2iVDI/README.md
+COPY ./requirements.txt /app/H2iVDI/requirements.txt
+COPY ./setup.py /app/H2iVDI/setup.py
+WORKDIR /app/H2iVDI
+RUN pip3 install -r requirements.txt
+RUN pip3 -v install .
+
+
+# # Stage 3 - Execute algorithm
+FROM stage2 as stage3
+ENTRYPOINT ["python3", "/app/H2iVDI/bin/h2ivdi_cli.py"]
