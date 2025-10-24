@@ -32,7 +32,6 @@ setup(
     description="H2iVDI (Hybrid Hierarchical Variational Discharge Inference) discharge algorithm",
     long_description="",
     ext_modules=ext_modules,
-    extras_require={"test": "pytest"},
     cmdclass={"build_ext": build_ext},
     zip_safe=False,
     packages=find_packages(),
