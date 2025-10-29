@@ -123,7 +123,7 @@ class SwotCaseProcessor(CaseProcessor):
 
         return 0
 
-    def postpro(self, output_dir="/mnt/data/output"):
+    def postpro(self, output_dir="/mnt/data/output", suffix="hivdi"):
 
         # Store results in rundir
         # TODO
@@ -131,7 +131,7 @@ class SwotCaseProcessor(CaseProcessor):
 
         # Create output file
         if self._data.reach.nt > 0:
-            self._write_output_(self._calibration_results, output_dir)
+            self._write_output_(self._calibration_results, output_dir, suffix)
         
         return self._calibration_results, 0
 
@@ -244,7 +244,7 @@ class SwotCaseProcessor(CaseProcessor):
 
         return results
 
-    def _write_output_(self, results, output_dir, single_output_per_reach=True):
+    def _write_output_(self, results, output_dir, suffix, single_output_per_reach=True):
         # TODO use xarray instead of netcdf ?
 
         if single_output_per_reach is True:
@@ -259,11 +259,13 @@ class SwotCaseProcessor(CaseProcessor):
                                                   "Q": results["prior"]["Q"][:]},
                                         "posterior": {"A0": results["posterior"]["A0"][i],
                                                       "n": results["posterior"]["n"][i],
+                                                      "alpha": 1.0 / results["posterior"]["n"][i],
+                                                      "beta": 0.0,
                                                       "Q": results["posterior"]["Q"][:],
                                                       "Q_ci": results["posterior"]["Q_ci"][:, :]}}
                 # TODO HERE 
                 # out_file = os.path.join(output_dir, "%s_h2ivdi.nc" % reach_id)
-                out_file = os.path.join(output_dir, "%s_hivdi.nc" % reach_id)
+                out_file = os.path.join(output_dir, "%s_%s.nc" % (reach_id, suffix))
                 self._write_single_reach_output_(out_file, reach_id, single_reach_results)
         else:
             raise NotImplementedError("Not implemented yet !")

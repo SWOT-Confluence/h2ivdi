@@ -168,8 +168,11 @@ class BayesianChain(InferenceChain):
         
         if self._parameters["calibrate_sigma_obs"] is True:
             l = self._calibrate_sigma_obs_(trace, rundir=rundir, qin_method=self._parameters["q0_method"])
+        # else:
+        #     l = self._auto_sigma_obs_(trace, rundir=rundir, qin_method=self._parameters["q0_method"])
         else:
-            l = self._auto_sigma_obs_(trace, rundir=rundir, qin_method=self._parameters["q0_method"])
+            sigma_obs = self._auto_sigma_obs_(trace, rundir=rundir, qin_method=self._parameters["q0_method"])
+            l = 0
 
         nt, nx = trace["Hsp"].shape[2:]
         h0_prior = np.sum(np.ravel(trace["h0"]) * np.ravel(trace["prior_pdf"])) / C_prior
@@ -177,7 +180,11 @@ class BayesianChain(InferenceChain):
         qm_prior = np.zeros(self._data.H.shape[0])
         # print("COST:", np.min(np.ravel(trace["cost"]))), np.nanmin(np.ravel(trace["cost"]))
         # lh = np.exp(-2**l * (trace["cost"] / np.min(np.ravel(trace["cost"])) - 1)**2)
-        lh = np.exp(-2**l * self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
+        if l is None:
+            self._likelihood.set_sigma(sigma_obs)
+            lh = self._likelihood.likelihood_from_cost(nt*nx, trace["cost"])
+        else:
+            lh = np.exp(-2**l * self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
         if np.any(np.ravel(np.isnan(lh))):
             self._logger.error("NaN Likelihood detected")
         C_post = np.sum(np.ravel(lh * trace["prior_pdf"]))
@@ -582,6 +589,30 @@ class BayesianChain(InferenceChain):
 
         return l
 
+    # def _auto_sigma_obs_(self, trace: dict, rundir: str=None, qin_method: str="low-froude"):
+
+    #     data = self._data
+    #     model = self._model
+    #     priors = self._priors
+    #     nt, nx = data.H.shape
+
+    #     l = 0
+    #     # print(np, type(np))
+    #     llh = self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"])
+    #     # print(llh, type(llh), l)
+    #     lh = np.exp(-2**l * self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
+    #     C_post = np.sum(np.ravel(lh * trace["prior_pdf"]))
+    #     # print("l=%i, C_post=%12.5e" % (l, C_post))
+    #     while C_post < 1e-15:
+    #         l = l - 1
+    #         llh = self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"])
+    #         # print(llh, type(llh), l)
+    #         lh = np.exp(-2**l * self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
+    #         C_post = np.sum(np.ravel(lh * trace["prior_pdf"]))
+    #         # print("l=%i, C_post=%12.5e" % (l, C_post))
+    #     # print("auto_sigma_obs: l=%i" % l)
+    #     return l
+
     def _auto_sigma_obs_(self, trace: dict, rundir: str=None, qin_method: str="low-froude"):
 
         data = self._data
@@ -589,22 +620,38 @@ class BayesianChain(InferenceChain):
         priors = self._priors
         nt, nx = data.H.shape
 
-        l = 0
+        sigma_obs = 0.05
+        self._likelihood.set_sigma(sigma_obs)
         # print(np, type(np))
-        llh = self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"])
+        # llh = self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"])
         # print(llh, type(llh), l)
-        lh = np.exp(-2**l * self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
+        # print("llh=", -self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
+        # lh = np.exp(-self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
+        lh = self._likelihood.likelihood_from_cost(nt*nx, trace["cost"])
         C_post = np.sum(np.ravel(lh * trace["prior_pdf"]))
-        # print("l=%i, C_post=%12.5e" % (l, C_post))
-        while C_post < 1e-15:
-            l = l - 1
-            llh = self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"])
+        # print("sigma_obs=%f, C_post=%12.5e, cost=%12.5e" % (sigma_obs, C_post, np.mean(trace["cost"].flatten())))
+        best_sigma_obs = sigma_obs
+        best_C_post = C_post
+        while C_post < 1e-15 and sigma_obs < 1.5:
+            sigma_obs += 0.05
+            # l = l - 1
+            self._likelihood.set_sigma(sigma_obs)
+            # llh = self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"])
             # print(llh, type(llh), l)
-            lh = np.exp(-2**l * self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
+            # print("llh=", -self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
+            # lh = np.exp(-self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
+            lh = self._likelihood.likelihood_from_cost(nt*nx, trace["cost"])
+            plt.imshow(lh)
+            plt.show()
             C_post = np.sum(np.ravel(lh * trace["prior_pdf"]))
-            # print("l=%i, C_post=%12.5e" % (l, C_post))
+            if C_post > best_C_post:
+                best_sigma_obs = sigma_obs
+                best_C_post = C_post
+            # print("sigma_obs=%f, C_post=%12.5e" % (sigma_obs, C_post))
+        
         # print("auto_sigma_obs: l=%i" % l)
-        return l
+        print("sigma_obs=%f, C_post=%12.5e" % (best_sigma_obs, best_C_post))
+        return best_sigma_obs
 
     def _write_trace_(self, fname, trace):
 

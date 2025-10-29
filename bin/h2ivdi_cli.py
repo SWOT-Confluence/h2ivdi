@@ -199,8 +199,6 @@ def process_runs(runs_file: str, index=None, mode="unconstrained", resume: bool=
     update_status_table = False
     if "update_status_table" in kwargs:
         if isinstance(update_status_table, bool):
-            print("HERE:", kwargs["update_status_table"])
-            choice = input()
             update_status_table = kwargs["update_status_table"]
         else:
             raise ValueError("'update_status_table' must be True or False")
@@ -226,6 +224,7 @@ def process_runs(runs_file: str, index=None, mode="unconstrained", resume: bool=
         for index in runs_indices:
             if index < 0 or index >= len(runs_list):
                 raise RuntimeError("Wrong run index: %i (must be in [0, %i[)" % (index, len(runs_list)))
+        output_suffix = "hivdi"
 
     elif "AWS_BATCH_JOB_ARRAY_INDEX" in os.environ:
 
@@ -236,6 +235,7 @@ def process_runs(runs_file: str, index=None, mode="unconstrained", resume: bool=
         if index < 0 or index >= len(runs_list):
             raise RuntimeError("Wrong run index: %i (must be in [0, %i[)" % (index, len(runs_list)))
         runs_indices = [index]
+        output_suffix = "h2ivdi"
 
     elif "EOHYDROLAB_SET_INDEX" in os.environ:
 
@@ -246,6 +246,10 @@ def process_runs(runs_file: str, index=None, mode="unconstrained", resume: bool=
         if index < 0 or index >= len(runs_list):
             raise RuntimeError("Wrong run index: %i (must be in [0, %i[)" % (index, len(runs_list)))
         runs_indices = [index]
+        output_suffix = "hivdi"
+
+    if "CONFLUENCE_US" in os.environ:
+        output_suffix = "h2ivdi"
 
     prepro_passed = 0
     run_passed = 0
@@ -354,7 +358,7 @@ def process_runs(runs_file: str, index=None, mode="unconstrained", resume: bool=
         run_passed += 1
 
         try:
-            results, error_code = processor.postpro(output_dir=kwargs["output_dir"])
+            results, error_code = processor.postpro(output_dir=kwargs["output_dir"], suffix=output_suffix)
         except Exception as err:
             if status_table_fname is not None:
                 append_or_update_status_table_file(status_table_fname, runs_indices[index], 0, 0, -9,
@@ -443,8 +447,8 @@ if __name__ == "__main__":
         failed_indices = load_failed_runs_from_status_table_file(args.status_table)
         print(failed_indices)
         args.run_index = failed_indices
-        
-    
+
+
     # Perform runs
     process_runs(args.runs_file, index=args.run_index, mode=args.run_mode, input_dir=args.input_dir, output_dir=args.output_dir,
                  status_table=args.status_table, resume=args.resume, s3_path=args.s3_path, 

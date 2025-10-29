@@ -25,10 +25,11 @@ COPY ./requirements.txt /app/H2iVDI/requirements.txt
 COPY ./setup.py /app/H2iVDI/setup.py
 WORKDIR /app/H2iVDI
 RUN python3 -m venv /app/venv
-RUN /app/venv/bin/pip -v install -r requirements.txt
+#RUN /app/venv/bin/pip -v install -r requirements.txt
 RUN /app/venv/bin/pip -v install .
 
 
 # # Stage 3 - Execute algorithm
 FROM stage2 as stage3
+ENV CONFLUENCE_US=1
 ENTRYPOINT ["/app/venv/bin/python", "/app/H2iVDI/bin/h2ivdi_cli.py"]
