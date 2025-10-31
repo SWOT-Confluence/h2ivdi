@@ -48,6 +48,7 @@ class BayesianChain(InferenceChain):
             return results, error_code_from_string("no_valid_observation_profile")
 
         # STEP 1: Sample h0, k0 (Low-Froude Qin method)
+        self._logger.info("Bayesian calibration")
         self._logger.debug("- Sample variables space")
         self._logger.debug("- Qin method: %s" % self._parameters["q0_method"])
         trace, error_code = self._sample_(*tuple(self._parameters["sample_sizes"]), rundir=rundir, qin_method=self._parameters["q0_method"])
@@ -83,16 +84,16 @@ class BayesianChain(InferenceChain):
             correction_method += 1
             self._logger.debug("- Correction method: %i" % correction_method)
 
-            if self._logger._debug_level > 0:
-                plt.figure()
-                plt.plot(trace["priors_margin_pdf"][:, :, 0], "b-")
-                plt.plot(trace["priors_margin_pdf"][:, :, 1], "r-")
-                plt.plot(trace["priors_margin_pdf"][:, :, 2], "g-")
-                # plt.show()
-                plt.plot(trace["q0"].flatten(), "g-")
-                plt.axhline(0.2 * self._data._QmeanModel, color="r", ls="--")
-                plt.axhline(5.0 * self._data._QmeanModel, color="r", ls="--")
-                plt.show()
+            # if self._logger._debug_level > 0:
+            #     plt.figure()
+            #     plt.plot(trace["priors_margin_pdf"][:, :, 0], "b-")
+            #     plt.plot(trace["priors_margin_pdf"][:, :, 1], "r-")
+            #     plt.plot(trace["priors_margin_pdf"][:, :, 2], "g-")
+            #     # plt.show()
+            #     plt.plot(trace["q0"].flatten(), "g-")
+            #     plt.axhline(0.2 * self._data._QmeanModel, color="r", ls="--")
+            #     plt.axhline(5.0 * self._data._QmeanModel, color="r", ls="--")
+            #     plt.show()
 
 
             if correction_method == 1:
@@ -202,22 +203,22 @@ class BayesianChain(InferenceChain):
         self._logger.debug("  - h0(0):%f, h0(*): %f" % (h0_prior, h0_post))
         self._logger.debug("  - k0(0):%f, k0(*): %f" % (k0_prior, k0_post))
         self._logger.debug("  - q0(0):%f, q0(*): %f" % (np.mean(qm_prior), np.mean(qm_post)))
-        print("- Prior:")
-        print("  - h0(0): %.2f" % h0_prior)
-        print("  - k0(0): %.2f" % k0_prior)
-        print("  - q0(0): %.2f" % np.mean(qm_prior))
-        print("- Posterior:")
-        print("  - h0(*): %.2f" % h0_post)
-        print("  - k0(*): %.2f" % k0_post)
-        print("  - q0(*): %.2f" % np.mean(qm_post))
+        self._logger.info("- Prior:")
+        self._logger.info("  - h0(0): %.2f" % h0_prior)
+        self._logger.info("  - k0(0): %.2f" % k0_prior)
+        self._logger.info("  - q0(0): %.2f" % np.mean(qm_prior))
+        self._logger.info("- Posterior:")
+        self._logger.info("  - h0(*): %.2f" % h0_post)
+        self._logger.info("  - k0(*): %.2f" % k0_post)
+        self._logger.info("  - q0(*): %.2f" % np.mean(qm_post))
         if self._data._A is not None or self._data._Q is not None:
-            print("- Target:")
+            self._logger.info("- Target:")
         if self._data._A is not None:
-            print("  - h0(*): %.2f" % np.mean(np.min(self._data._A, axis=0) / np.min(self._data._W, axis=0)))
+            self._logger.info("  - h0(*): %.2f" % np.mean(np.min(self._data._A, axis=0) / np.min(self._data._W, axis=0)))
         if self._data._K is not None:
-            print("  - k0(*): %.2f" % np.mean(np.mean(self._data._K, axis=0)))
+            self._logger.info("  - k0(*): %.2f" % np.mean(np.mean(self._data._K, axis=0)))
         if self._data._Q is not None:
-            print("  - q0(*): %.2f" % np.mean(np.mean(self._data._Q, axis=0)))
+            self._logger.info("  - q0(*): %.2f" % np.mean(np.mean(self._data._Q, axis=0)))
         if self._data._A is not None:
             h0_target = np.mean(np.min(self._data._A, axis=0) / np.min(self._data._W, axis=0))
         else:
@@ -332,7 +333,6 @@ class BayesianChain(InferenceChain):
                     q0_bounds = (0.2, 5.0)
                 elif self._parameters["run_mode"] == "constrained":
                     q0_bounds = (0.4, 2.5)
-                    print("HERE2!!!")
                 else:
                     raise ValueError("Wrong run mode: %s" % self._parameters["run_mode"])
                 q0_prior = new_distribution("BetaScaled", "q0", a=2.0, b=5.5, scale=self._data._QmeanModel, bounds=q0_bounds)
@@ -620,7 +620,7 @@ class BayesianChain(InferenceChain):
         priors = self._priors
         nt, nx = data.H.shape
 
-        sigma_obs = 0.05
+        sigma_obs = 0.25
         self._likelihood.set_sigma(sigma_obs)
         # print(np, type(np))
         # llh = self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"])
@@ -641,8 +641,8 @@ class BayesianChain(InferenceChain):
             # print("llh=", -self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
             # lh = np.exp(-self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
             lh = self._likelihood.likelihood_from_cost(nt*nx, trace["cost"])
-            plt.imshow(lh)
-            plt.show()
+            # plt.imshow(lh)
+            # plt.show()
             C_post = np.sum(np.ravel(lh * trace["prior_pdf"]))
             if C_post > best_C_post:
                 best_sigma_obs = sigma_obs

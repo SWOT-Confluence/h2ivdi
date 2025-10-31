@@ -117,7 +117,7 @@ class L2RiverScaleObservations:
             for its in range(1, self.nt):
                 Wm = 0.5 * (self._W[sorted_indices[its-1], ix] + self._W[sorted_indices[its], ix])
                 dH = self._H[sorted_indices[its], ix] - self._H[sorted_indices[its-1], ix]
-                self._dA[sorted_indices[its], ix] = self._dA[sorted_indices[its-1], ix] + dZ * Wm
+                self._dA[sorted_indices[its], ix] = self._dA[sorted_indices[its-1], ix] + dH * Wm
 
     def compute_effective_sections(self, nlevels=3):
         """ Compute dA (flow area above lowest cross-section)
@@ -195,6 +195,22 @@ class L2RiverScaleObservations:
             values = getattr(self, "_%s" % variable)
             if values is not None:
                 setattr(self, "_%s" % variable, values[:, selection])
+
+    def spatial_mean(self):
+
+        # Select values in 1-dimensional variables
+        for variable in ["x"]:
+            values = getattr(self, "_%s" % variable)
+            if values is not None:
+                setattr(self, "_%s" % variable, np.mean(values).reshape((1,)))
+
+        # Select values in 2-dimensional variables
+        for variable in ["H", "W", "S", "K", "A", "Q", "He", "We"]:
+            values = getattr(self, "_%s" % variable)
+            if values is not None:
+                # print("SPATIAL_MEAN: %s=%s" % (variable, values))
+                setattr(self, "_%s" % variable, np.mean(values, axis=1).reshape((-1, 1)))
+                # print("=>: %s" % str(getattr(self, "_%s" % variable)))
 
     def time_selection(self, selection):
 

@@ -216,6 +216,7 @@ def process_runs(runs_file: str, index=None, mode="unconstrained", resume: bool=
                 # fcntl.flock(status_table_file, fcntl.LOCK_EX)
                 # status_table_file.close()
 
+    output_suffix = "hivdi"
     if index is not None:
         if isinstance(index, list):
             runs_indices = index
@@ -311,7 +312,7 @@ def process_runs(runs_file: str, index=None, mode="unconstrained", resume: bool=
             if logger._debug_level > 0:
                 logger.error(traceback.format_exc())
             logger.info("-" * 40 + "\n")
-            processor.write_failed_output(output_dir=kwargs["output_dir"], error_code=997)
+            processor.write_failed_output(output_dir=kwargs["output_dir"], suffix=output_suffix, error_code=997)
             critical_error_detected = True
             continue
         if error_code != 0:
@@ -322,7 +323,7 @@ def process_runs(runs_file: str, index=None, mode="unconstrained", resume: bool=
             #     status_table_file.write("%i;%i;;\n" % (runs_indices[index], error_code))
             logger.error("Preprocessing failed: error_code=%i" % error_code)
             logger.info("-" * 40 + "\n")
-            processor.write_failed_output(output_dir=kwargs["output_dir"], error_code=error_code)
+            processor.write_failed_output(output_dir=kwargs["output_dir"], suffix=output_suffix, error_code=error_code)
             if error_code in __critical_errors__:
                 critical_error_detected = True
             continue
@@ -340,7 +341,7 @@ def process_runs(runs_file: str, index=None, mode="unconstrained", resume: bool=
             if logger._debug_level > 0:
                 logger.error(traceback.format_exc())
             logger.info("-" * 40 + "\n")
-            processor.write_failed_output(output_dir=kwargs["output_dir"], error_code=998)
+            processor.write_failed_output(output_dir=kwargs["output_dir"], suffix=output_suffix, error_code=998)
             critical_error_detected = True
             continue
         if error_code != 0:
@@ -351,7 +352,7 @@ def process_runs(runs_file: str, index=None, mode="unconstrained", resume: bool=
             #     status_table_file.write("%i;0;%i;\n" % (runs_indices[index], error_code))
             logger.error("Run failed: error_code=%i" % error_code)
             logger.info("-" * 40 + "\n")
-            processor.write_failed_output(output_dir=kwargs["output_dir"], error_code=error_code)
+            processor.write_failed_output(output_dir=kwargs["output_dir"], suffix=output_suffix, error_code=error_code)
             if error_code in __critical_errors__:
                 critical_error_detected = True
             continue
@@ -369,7 +370,7 @@ def process_runs(runs_file: str, index=None, mode="unconstrained", resume: bool=
             if logger._debug_level > 0:
                 logger.error(traceback.format_exc())
             logger.info("-" * 40 + "\n")
-            processor.write_failed_output(output_dir=kwargs["output_dir"], error_code=999)
+            processor.write_failed_output(output_dir=kwargs["output_dir"], suffix=output_suffix, error_code=999)
             critical_error_detected = True
         if error_code != 0:
             if status_table_fname is not None:
@@ -379,7 +380,7 @@ def process_runs(runs_file: str, index=None, mode="unconstrained", resume: bool=
             #     status_table_file.write("%i;0;0;%i\n" % (runs_indices[index], error_code))
             logger.error("Postprocessing failed: error_code=%i" % error_code)
             logger.info("-" * 40 + "\n")
-            processor.write_failed_output(output_dir=kwargs["output_dir"], error_code=error_code)
+            processor.write_failed_output(output_dir=kwargs["output_dir"], suffix=output_suffix, error_code=error_code)
             continue
 
         if status_table_fname is not None:
