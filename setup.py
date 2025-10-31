@@ -5,7 +5,7 @@ from pybind11.setup_helpers import Pybind11Extension, build_ext
 from setuptools import setup, find_packages
 
 pkg_name = "H2iVDI"
-__version__ = "0.1"
+__version__ = "2.2"
 
 __extra_compile_args__ = ["-O3"]
 #__extra_compile_args__ = ["-g", "-DDEBUG"]

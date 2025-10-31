@@ -9,6 +9,7 @@ from .case_processor import CaseProcessor
 from H2iVDI.chains import BayesianChain
 from H2iVDI.core import error_string_from_code
 from H2iVDI.io import L2RiverInferenceDataset
+from H2iVDI.models import LowFroudeModel
 
 
 class SwotCaseProcessor(CaseProcessor):
@@ -116,33 +117,62 @@ class SwotCaseProcessor(CaseProcessor):
         self._calibration_results, error_code = chain.calibrate(rundir=self._rundir)
         if error_code != 0: return error_code
 
-        # plt.plot(self._data._reach_obs.t, self._data._reach_obs.H)
-        # plt.show()
+        # # Process single reach set
+        results = self._calibration_results
+        if self._data._initial_reach_count == 1:
+            for stage in ["prior", "posterior"]:
+                results[stage]["A0"] = np.mean(results[stage]["A0"]).reshape((1,))
+                results[stage]["n"] = np.mean(results[stage]["n"]).reshape((1,))
+            self._data._reach_obs.spatial_mean()
 
         self._logger.debug("[ END ] Run SWOT case processor")
 
         return 0
 
-    def postpro(self, output_dir="/mnt/data/output"):
+    def postpro(self, output_dir="/mnt/data/output", suffix="hivdi"):
 
         # Store results in rundir
         # TODO
         # self._store_calibration_results_(results)
 
+        # Calibrate Low Froude model
+        self._logger.info("Calibration of the Low-Froude Rerun model")
+        h = self._calibration_results["posterior"]["A0"] / self._data.reach._We[0]
+        h0 = np.mean(h)
+        h1 = h/h0
+        n = self._calibration_results["posterior"]["n"]
+        k0 = 1/n
+        k1 = np.zeros(h1.size)
+        Q = np.repeat(self._calibration_results["posterior"]["Q"][:].reshape((-1, 1)), h1.size, axis=1)
+        # print("h0_post=", h0)
+        # print("h1_post=", h1)
+        # print("k0_post=", h0)
+        # print("k1_post=", k1)
+        lowfroude_model = LowFroudeModel(self._data.reach, h0, h1, k0, k1)
+        lowfroude_model.calibrate_rerun(Q)
+        Qlf = lowfroude_model.compute_rerun_discharge()
+        A0lf = lowfroude_model._h0 * lowfroude_model._h1 * np.nanmin(self._data.reach.W, axis=0)
+        self._calibration_results["low-froude"] = {"A0": A0lf,
+                                                   "n": lowfroude_model._n,
+                                                   "alpha": lowfroude_model._alpha,
+                                                   "beta": lowfroude_model._beta,
+                                                   "Q": Qlf}
+        
         # Create output file
+        self._logger.info("Export results")
         if self._data.reach.nt > 0:
-            self._write_output_(self._calibration_results, output_dir)
+            self._write_output_(self._calibration_results, output_dir, suffix)
         
         return self._calibration_results, 0
 
-    def write_failed_output(self, output_dir="/mnt/data/output", error_code=999):
+    def write_failed_output(self, output_dir="/mnt/data/output", suffix="hivdi", error_code=999):
 
         # Store results in rundir
         # TODO
         # self._store_calibration_results_(results)
 
         # Create output file
-        self._write_failed_output_(output_dir, error_code)
+        self._write_failed_output_(output_dir, suffix, error_code)
 
     # def load_data(self, set_def: str):
     #     self._data = PepsiDataset(set_def, self._input_dir, self._output_dir)
@@ -244,7 +274,7 @@ class SwotCaseProcessor(CaseProcessor):
 
         return results
 
-    def _write_output_(self, results, output_dir, single_output_per_reach=True):
+    def _write_output_(self, results, output_dir, suffix, single_output_per_reach=True):
         # TODO use xarray instead of netcdf ?
 
         if single_output_per_reach is True:
@@ -257,13 +287,16 @@ class SwotCaseProcessor(CaseProcessor):
                                         "prior": {"A0": results["prior"]["A0"][i],
                                                   "n": results["prior"]["n"][i],
                                                   "Q": results["prior"]["Q"][:]},
-                                        "posterior": {"A0": results["posterior"]["A0"][i],
-                                                      "n": results["posterior"]["n"][i],
+                                        "posterior": {"A0": results["low-froude"]["A0"][i],
+                                                      "n": results["low-froude"]["n"][i],
+                                                      "alpha": results["low-froude"]["alpha"][i],
+                                                      "beta": results["low-froude"]["beta"][i],
                                                       "Q": results["posterior"]["Q"][:],
-                                                      "Q_ci": results["posterior"]["Q_ci"][:, :]}}
+                                                      "Q_ci": results["posterior"]["Q_ci"][:, :],
+                                                      "Qlf": results["low-froude"]["Q"][:, i]}}
                 # TODO HERE 
                 # out_file = os.path.join(output_dir, "%s_h2ivdi.nc" % reach_id)
-                out_file = os.path.join(output_dir, "%s_hivdi.nc" % reach_id)
+                out_file = os.path.join(output_dir, "%s_%s.nc" % (reach_id, suffix))
                 self._write_single_reach_output_(out_file, reach_id, single_reach_results)
         else:
             raise NotImplementedError("Not implemented yet !")
@@ -282,9 +315,6 @@ class SwotCaseProcessor(CaseProcessor):
         dataset.setncatts({"title" : "H2IVDI output",
                            "production_date" : datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                            "set": set_name,
-                           # "exception" : exception,
-                           # "obs_validity" : flags[0],
-                           # "inference_status" : flags[1],
                            "status": int(results["status"]),
                            "error_code": results["error_code"],
                            "error_string": results["error_string"]})
@@ -309,20 +339,6 @@ class SwotCaseProcessor(CaseProcessor):
             time[:] = (self._data._reach_obs.dates - np.datetime64("2000-01-01")) / np.timedelta64(1, "s")
 
             time_str = dataset.createVariable("time_str", "c", ("nt","chartime"))
-            # valid_index = 0
-            # for i in range(0, len(self._data._reach_obs._nt)):
-            #     if np.isnat(self._data._reach_obs.dates)
-            #     if bool(valid[i]) is False:
-            #         time_str[i, 0] = 'N'
-            #         time_str[i, 1] = 'a'
-            #         time_str[i, 2] = 'T'
-            #         for j in range(3, 20):
-            #             time_str[i, j] = '\0'
-            #     else:
-            #         current_time_str = "%sZ" % str(self._data._reach_obs.dates[valid_index])
-            #         valid_index += 1
-            #         for j in range(0, 20):
-            #             time_str[i, j] = current_time_str[j]
             for i in range(0, len(self._data._reach_obs._nt)):
                 if np.isnat(self._data._reach_obs.dates[i]):
                     time_str[i, 0] = 'N'
@@ -355,14 +371,14 @@ class SwotCaseProcessor(CaseProcessor):
         manning.long_name = "Manning coefficient"
         manning.units = "s.m^(-1/3)" 
         manning[0] = np.nan_to_num(results["posterior"]["n"], copy=True, nan=-999999999999.)
-        # alpha = reach_group.createVariable("alpha", "f8", (), fill_value=-999999999999.)
-        # alpha.long_name = "coefficient for the Strickler power law"
-        # alpha.units = "m^(1/3)/s" 
-        # alpha[0] = np.nan_to_num(results["posterior"]["alpha"], copy=True, nan=-999999999999.)
-        # beta = reach_group.createVariable("beta", "f8", (), fill_value=-999999999999.)
-        # beta[0] = np.nan_to_num(estimates["beta"], copy=True, nan=-999999999999.)
-        # beta.long_name = "exponent for the Strickler power law"
-        # beta.units = "-" 
+        alpha = reach_group.createVariable("alpha", "f8", (), fill_value=-999999999999.)
+        alpha.long_name = "coefficient for the Strickler power law"
+        alpha.units = "m^(1/3)/s" 
+        alpha[0] = np.nan_to_num(results["posterior"]["alpha"], copy=True, nan=-999999999999.)
+        beta = reach_group.createVariable("beta", "f8", (), fill_value=-999999999999.)
+        beta.long_name = "exponent for the Strickler power law"
+        beta.units = "-" 
+        beta[0] = np.nan_to_num(results["posterior"]["beta"], copy=True, nan=-999999999999.)
         Q = reach_group.createVariable("Q", "f8", ("nt",), fill_value=-999999999999.)
         Q.long_name = "discharge"
         Q.units = "m^3/s" 
@@ -374,48 +390,8 @@ class SwotCaseProcessor(CaseProcessor):
         Qmanning = reach_group.createVariable("Qmanning", "f8", ("nt",), fill_value=-999999999999.)
         Qmanning.long_name = "discharge computed using Manning Equation (Low-Froude)"
         Qmanning.units = "m^3/s" 
-        # Qmanning[:] = np.nan_to_num(estimates["Qmanning"][:], copy=True, nan=-999999999999.)
+        Qmanning[valid] = np.nan_to_num(results["posterior"]["Qlf"][:], copy=True, nan=-999999999999.)
 
-        # # Create obs group
-        # # print("reach: %s" % str(reach_id))
-        # # print("obs_flags:", estimates["obs_flags"])
-        # obs_group = dataset.createGroup("obs_flags")
-        # reach_times = obs_group.createVariable("reach_times", "i2", (), fill_value=-9)
-        # reach_times[:] = estimates["obs_flags"]["reach_times"]
-        # reach_times.long_name = "Flag for times values at reach scale"
-        # reach_times.flag_meanings = "ok, some are missing, all are missing"
-        # reach_times.flag_values = "0, 1, 2"
-        # reach_wse = obs_group.createVariable("reach_wse", "i2", (), fill_value=-9)
-        # reach_wse[:] = estimates["obs_flags"]["reach_wse"]
-        # reach_wse.long_name = "Flag for wse values at reach scale"
-        # reach_wse.flag_meanings = "ok, some are missing, all are missing"
-        # reach_wse.flag_values = "0, 1, 2"
-        # reach_widths = obs_group.createVariable("reach_widths", "i2", (), fill_value=-9)
-        # reach_widths[:] = estimates["obs_flags"]["reach_widths"]
-        # reach_widths.long_name = "Flag for widths values at reach scale"
-        # reach_widths.flag_meanings = "ok, some are missing, all are missing"
-        # reach_widths.flag_values = "0, 1, 2"
-        # reach_slopes = obs_group.createVariable("reach_slopes", "i2", (), fill_value=-9)
-        # reach_slopes[:] = estimates["obs_flags"]["reach_slopes"]
-        # reach_slopes.long_name = "Flag for slopes values at reach scale"
-        # reach_slopes.flag_meanings = "ok, some are missing, all are missing"
-        # reach_slopes.flag_values = "0, 1, 2"
-        # nodes_times = obs_group.createVariable("nodes_times", "i2", (), fill_value=-9)
-        # nodes_times[:] = estimates["obs_flags"]["nodes_times"]
-        # nodes_times.long_name = "Flag for times values at node scale"
-        # nodes_times.flag_meanings = "ok, some are missing, all are missing"
-        # nodes_times.flag_values = "0, 1, 2"
-        # nodes_wse = obs_group.createVariable("nodes_wse", "i2", (), fill_value=-9)
-        # nodes_wse[:] = estimates["obs_flags"]["nodes_wse"]
-        # nodes_wse.long_name = "Flag for wse values at node scale"
-        # nodes_wse.flag_meanings = "ok, some are missing, all are missing"
-        # nodes_wse.flag_values = "0, 1, 2"
-        # nodes_widths = obs_group.createVariable("nodes_widths", "i2", (), fill_value=-9)
-        # nodes_widths[:] = estimates["obs_flags"]["nodes_widths"]
-        # nodes_widths.long_name = "Flag for widths values at node scale"
-        # nodes_widths.flag_meanings = "ok, some are missing, all are missing"
-        # nodes_widths.flag_values = "0, 1, 2"
-        
         # Close output dataset
         dataset.close()
 
@@ -423,7 +399,7 @@ class SwotCaseProcessor(CaseProcessor):
         # TODO use xarray instead of netcdf ?
 
         # Open dataset
-        dataset = Dataset(out_file, 'w', format="NETCDF4")
+        dataset = nc.Dataset(out_file, 'w', format="NETCDF4")
         
         # Set global attributes
         dataset.setncatts({"title" : "H2IVDI output",
@@ -536,14 +512,14 @@ class SwotCaseProcessor(CaseProcessor):
         # Close output dataset
         dataset.close()
 
-    def _write_failed_output_(self, output_dir, error_code, single_output_per_reach=True):
+    def _write_failed_output_(self, output_dir, suffix, error_code, single_output_per_reach=True):
         # TODO use xarray instead of netcdf ?
 
         if single_output_per_reach is True:
             for i, reach_id in enumerate(self._reaches_id):
                 self._logger.debug("- Save empty results for reach %i" % reach_id)
                 # out_file = os.path.join(output_dir, "%s_h2ivdi.nc" % reach_id)
-                out_file = os.path.join(output_dir, "%s_hivdi.nc" % reach_id)
+                out_file = os.path.join(output_dir, "%s_%s.nc" % (reach_id, suffix))
                 self._write_single_reach_failed_output_(out_file, reach_id, error_code)
         else:
             raise NotImplementedError("Not implemented yet !")
@@ -562,9 +538,6 @@ class SwotCaseProcessor(CaseProcessor):
         dataset.setncatts({"title" : "H2IVDI output",
                            "production_date" : datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                            "set": set_name,
-                           # "exception" : exception,
-                           # "obs_validity" : flags[0],
-                           # "inference_status" : flags[1],
                            "status": 0,
                            "error_code": error_code,
                            "error_string": error_string_from_code(error_code)})
@@ -597,19 +570,6 @@ class SwotCaseProcessor(CaseProcessor):
             time[:] = (self._data._reach_obs.dates - np.datetime64("2000-01-01")) / np.timedelta64(1, "s")
 
             time_str = dataset.createVariable("time_str", "c", ("nt","chartime"))
-            # valid_index = 0
-            # for i in range(0, len(self._data._reach_obs._nt)):
-            #     if bool(valid[i]) is False:
-            #         time_str[i, 0] = 'N'
-            #         time_str[i, 1] = 'a'
-            #         time_str[i, 2] = 'T'
-            #         for j in range(3, 20):
-            #             time_str[i, j] = '\0'
-            #     else:
-            #         current_time_str = "%sZ" % str(self._data._reach_obs.dates[valid_index])
-            #         valid_index += 1
-            #         for j in range(0, 20):
-            #             time_str[i, j] = current_time_str[j]
             for i in range(0, len(self._data._reach_obs._nt)):
                 if np.isnat(self._data._reach_obs.dates[i]):
                     time_str[i, 0] = 'N'
@@ -633,9 +593,18 @@ class SwotCaseProcessor(CaseProcessor):
         A0 = reach_group.createVariable("A0", "f8", (), fill_value=-999999999999.)
         A0.long_name = "unobserved cross-sectional area"
         A0.units = "m^2"
+        # Abar = reach_group.createVariable("Abar", "f8", (), fill_value=-999999999999.)
+        # Abar.long_name = "median cross-sectional area"
+        # Abar.units = "m^2"
         manning = reach_group.createVariable("n", "f8", (), fill_value=-999999999999.)
         manning.long_name = "Manning coefficient"
         manning.units = "s.m^(-1/3)" 
+        alpha = reach_group.createVariable("alpha", "f8", (), fill_value=-999999999999.)
+        alpha.long_name = "coefficient for the Strickler power law"
+        alpha.units = "m^(1/3)/s" 
+        beta = reach_group.createVariable("beta", "f8", (), fill_value=-999999999999.)
+        beta.long_name = "exponent for the Strickler power law"
+        beta.units = "-" 
         Q = reach_group.createVariable("Q", "f8", ("nt",), fill_value=-999999999999.)
         Q.long_name = "discharge"
         Q.units = "m^3/s" 

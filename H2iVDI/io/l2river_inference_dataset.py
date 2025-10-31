@@ -154,6 +154,8 @@ class L2RiverInferenceDataset(L2RiverObservations):
         self._logger.info("  - reach scale: nt=%i, nx=%i" % (self._reach_obs.nt, self._reach_obs.nx))
         self._logger.info("  - node scale : nt=%i, nx=%i" % (self._node_obs.nt, self._node_obs.nx))
 
+        self._initial_reach_count = 1
+
         return 0
 
 
@@ -314,5 +316,6 @@ class L2RiverInferenceDataset(L2RiverObservations):
         #                                     "Qi": q}
         # else:
         #     self._obs_data = None
+        self._initial_reach_count = self._reach_obs.nx
 
         return 0
