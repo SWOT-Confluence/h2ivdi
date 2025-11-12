@@ -11,7 +11,7 @@ resource "aws_batch_job_definition" "generate_batch_jd_hivdi" {
     "logConfiguration": {
       "logDriver" : "awslogs",
       "options": {
-        "awslogs-group" : "${data.aws_cloudwatch_log_group.cw_log_group.name}"
+        "awslogs-group" : aws_cloudwatch_log_group.cw_log_group.name
       }
     },
     "resourceRequirements": [
@@ -51,4 +51,9 @@ resource "aws_batch_job_definition" "generate_batch_jd_hivdi" {
   platform_capabilities = ["FARGATE"]
   propagate_tags        = true
   tags = { "job_definition": "${var.prefix}-hivdi" }
+}
+
+# Log group
+resource "aws_cloudwatch_log_group" "cw_log_group" {
+  name = "/aws/batch/job/${var.prefix}-hivdi/"
 }
