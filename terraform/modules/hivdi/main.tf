@@ -1,9 +1,9 @@
 # Data sources
 data "aws_caller_identity" "current" {}
 
-data "aws_cloudwatch_log_group" "cw_log_group" {
-  name = "/aws/batch/job/${var.prefix}-hivdi/"
-}
+#data "aws_cloudwatch_log_group" "cw_log_group" {
+#  name = "/aws/batch/job/${var.prefix}-hivdi/"
+#}
 
 data "aws_efs_file_system" "aws_efs_input" {
   creation_token = "${var.prefix}-input"
