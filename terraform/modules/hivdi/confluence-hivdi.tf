@@ -11,7 +11,7 @@ resource "aws_batch_job_definition" "generate_batch_jd_hivdi" {
     "logConfiguration": {
       "logDriver" : "awslogs",
       "options": {
-        "awslogs-group" : aws_cloudwatch_log_group.cw_log_group.name
+        "awslogs-group" : "${aws_cloudwatch_log_group.cw_log_group.name}"
       }
     },
     "resourceRequirements": [
