@@ -11,8 +11,9 @@ from .swot_reach_dataset import SwotReachDataset
 
 class L2RiverInferenceDataset(L2RiverObservations):
     
-    def __init__(self, set_def, input_dir: str, output_dir: str):
+    def __init__(self, set_def, input_dir: str, output_dir: str, internal_data_correction=True):
         super().__init__()
+        self._internal_data_correction = internal_data_correction
 
         ## Load dataset
         #self.load(set_def, input_dir, output_dir)
@@ -99,7 +100,7 @@ class L2RiverInferenceDataset(L2RiverObservations):
         self._logger.debug("Load SWOT data")
         swot_file = os.path.join(input_dir, "swot", set_def["swot"])
         swot = SwotReachDataset()
-        error_code = swot.load_from_nc_file(swot_file, cycle_attr=cycle_attr, correct_with_nodes=True, remove_missing_data=True, sword=sword)
+        error_code = swot.load_from_nc_file(swot_file, cycle_attr=cycle_attr, correct_with_nodes=self._internal_data_correction, remove_missing_data=True, sword=sword)
         if error_code != 0: return error_code
         error_code = swot.check()
         if error_code != 0: return error_code
@@ -190,7 +191,7 @@ class L2RiverInferenceDataset(L2RiverObservations):
         self._logger.debug("Load SWOT data")
         swot_file = os.path.join(input_dir, "swot", set_def[-1]["swot"])
         swot = SwotReachDataset()
-        error_code = swot.load_from_nc_file(swot_file, cycle_attr=cycle_attr, correct_with_nodes=True, remove_missing_data=True, sword=sword)
+        error_code = swot.load_from_nc_file(swot_file, cycle_attr=cycle_attr, correct_with_nodes=self._internal_data_correction, remove_missing_data=True, sword=sword)
         if error_code != 0: return error_code
         error_code = swot.check()
         if error_code != 0: return error_code
@@ -237,7 +238,7 @@ class L2RiverInferenceDataset(L2RiverObservations):
         for i in range(len(set_def)-2, -1, -1):
             swot_file = os.path.join(input_dir, "swot", set_def[i]["swot"])
             swot = SwotReachDataset()
-            error_code = swot.load_from_nc_file(swot_file, cycle_attr=cycle_attr, correct_with_nodes=True, remove_missing_data=True, sword=sword)
+            error_code = swot.load_from_nc_file(swot_file, cycle_attr=cycle_attr, correct_with_nodes=self._internal_data_correction, remove_missing_data=True, sword=sword)
             if error_code != 0: return error_code
             error_code = swot.check()
             if error_code != 0: return error_code

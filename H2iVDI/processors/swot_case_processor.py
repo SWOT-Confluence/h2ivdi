@@ -14,14 +14,15 @@ from H2iVDI.models import LowFroudeModel
 
 class SwotCaseProcessor(CaseProcessor):
 
-    def __init__(self, set_def, run_mode: str, input_dir:str, output_dir:str, s3_path:str):
+    def __init__(self, set_def, options: dict, input_dir:str, output_dir:str, s3_path:str):
         super().__init__()
 
         # Store set definition
         self._set_def = set_def
 
-        # Store run mode definition
-        self._run_mode = run_mode
+        # Store options
+        self._options = options
+        # self._run_mode = run_mode
 
         # Store directories
         self._input_dir = input_dir
@@ -56,7 +57,8 @@ class SwotCaseProcessor(CaseProcessor):
 
         # Load dataset
             # def __init__(self, set_def, input_dir: str, output_dir: str):
-        self._data = L2RiverInferenceDataset(set_def=self._set_def, input_dir=self._input_dir, output_dir=self._output_dir)
+        self._data = L2RiverInferenceDataset(set_def=self._set_def, input_dir=self._input_dir, output_dir=self._output_dir,
+                                             internal_data_correction=self._options["internal-data-correction"])
         # print(self._data, 'here is data')
         error_code = self._data.load(self._set_def, self._input_dir, self._output_dir, self._s3_path)
         if error_code != 0: return error_code
@@ -101,7 +103,7 @@ class SwotCaseProcessor(CaseProcessor):
 
         # Create chain parameters
         parameters = {"model": "swst3lfb",
-                      "run_mode": self._run_mode,
+                      "run_mode": self._options["run-mode"],
                       "q0_method": "optim",
                       "calibrate_sigma_obs": False,
                       "plots": {"inference": True,

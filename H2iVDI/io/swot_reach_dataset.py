@@ -35,7 +35,7 @@ class SwotReachDataset:
         reach_S = reach.slope2.values
         reach_S0 = reach_S.copy()
         reach_qual = reach.reach_q.values
-        reach_qual.fill(255)
+        reach_qual.fill(2)
         reach_qual = reach_qual.astype(int)
         # print("WSE:", reach_H)
         # print("SLOPE2:", reach_S)
