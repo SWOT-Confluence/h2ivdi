@@ -650,7 +650,7 @@ class BayesianChain(InferenceChain):
             # print("sigma_obs=%f, C_post=%12.5e" % (sigma_obs, C_post))
         
         # print("auto_sigma_obs: l=%i" % l)
-        print("sigma_obs=%f, C_post=%12.5e" % (best_sigma_obs, best_C_post))
+        self._logger.debug("C_post=%s (sigma_obs=%.3f)" % (str(best_C_post), best_sigma_obs))
         return best_sigma_obs
 
     def _write_trace_(self, fname, trace):

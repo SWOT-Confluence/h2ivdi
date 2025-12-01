@@ -169,7 +169,7 @@ def append_or_update_status_table_file(status_table_file: str, run_index: int, p
                                  postpro_code=postpro_code)
 
 
-def process_runs(runs_file: str, index=None, mode="unconstrained", resume: bool=False, **kwargs):
+def process_runs(runs_file: str, index=None, resume: bool=False, **kwargs):
     """ Process runs
 
         Parameters
@@ -251,6 +251,7 @@ def process_runs(runs_file: str, index=None, mode="unconstrained", resume: bool=
 
     if "CONFLUENCE_US" in os.environ:
         output_suffix = "h2ivdi"
+        kwargs["output_dir"] = "/mnt/data/flpe/hivdi"
 
     prepro_passed = 0
     run_passed = 0
@@ -284,7 +285,10 @@ def process_runs(runs_file: str, index=None, mode="unconstrained", resume: bool=
                 raise ValueError("'output_dir' must be provided for confluence run")
 
             # Create SwotCaseProcessor
-            processor = SwotCaseProcessor(run_def, mode, kwargs["input_dir"], kwargs["output_dir"], kwargs["s3_path"])
+            swot_options = kwargs["swot_options"]
+            options = {"run-mode": swot_options["mode"],
+                       "internal-data-correction": swot_options["internal-data-correction"]}
+            processor = SwotCaseProcessor(run_def, options, kwargs["input_dir"], kwargs["output_dir"], kwargs["s3_path"])
 
         elif data_type == "pepsi":
 
@@ -432,6 +436,8 @@ if __name__ == "__main__":
     parser.add_argument("--debug-level", dest="debug_level", type=int,
                         choices=[0, 1, 2], default=0,
                         help="Set debug level (0=debug disabled)")
+    parser.add_argument("--disable-data-correction", dest="internal_data_correction", action="store_false",
+                        help="Disable internal data corrections (SWOT)")
     parser.add_argument("--resume", action="store_true",
                         help="Enable resume mode")
     parser.add_argument("--retry-failed", dest="retry_failed", action="store_true",
@@ -451,7 +457,7 @@ if __name__ == "__main__":
 
 
     # Perform runs
-    process_runs(args.runs_file, index=args.run_index, mode=args.run_mode, input_dir=args.input_dir, output_dir=args.output_dir,
+    process_runs(args.runs_file, index=args.run_index, input_dir=args.input_dir, output_dir=args.output_dir,
                  status_table=args.status_table, resume=args.resume, s3_path=args.s3_path, 
-                 update_table=args.retry_failed)
+                 update_table=args.retry_failed, swot_options={"mode": args.run_mode, "internal-data-correction": args.internal_data_correction})
 

@@ -149,20 +149,23 @@ class LowFroudeModel:
 
     def calibrate_rerun(self, Q):
 
-        valid_subset = np.isfinite(np.mean(Q, axis=1))
-        if np.all(valid_subset == False):
-            return 1
 
         data = self._data
-        self._alpha = np.zeros(data.x.size)
-        self._beta = np.zeros(data.x.size)
-        self._n = np.zeros(data.x.size)
+        self._alpha = np.ones(data.x.size) * np.nan
+        self._beta = np.ones(data.x.size) * np.nan
+        self._n = np.ones(data.x.size) * np.nan
 
         if not hasattr(self._data, "_dA"):
             self._data.compute_dA()
 
         for ir in range(0, data.x.size):
 
+            valid_subset = np.isfinite(Q[:, ir])
+            valid_subset = np.logical_and(valid_subset, np.isfinite(data._dA[:, ir]))
+            valid_subset = np.logical_and(valid_subset, np.isfinite(data._W[:, ir]))
+            valid_subset = np.logical_and(valid_subset, np.isfinite(data._S[:, ir]))
+            if np.all(valid_subset == False):
+                continue
             dArc = data._dA[valid_subset, ir]
             Wrc = data._W[valid_subset, ir]
             Src = data._S[valid_subset, ir]
@@ -175,7 +178,7 @@ class LowFroudeModel:
                 alpha = pm.Uniform('alpha', lower=5.0, upper=80.0)
                 beta = pm.Normal('beta', mu=0.0, sigma=0.03)
 
-                A0 = self._h0 * self._h1 * W0
+                A0 = self._h0 * self._h1[ir] * W0
 
                 h = (A0 + dArc) / Wrc
                 mu = alpha * h**beta * (A0 + dArc) ** (5. / 3.) * Wrc ** (-2. / 3.) * Src ** 0.5
