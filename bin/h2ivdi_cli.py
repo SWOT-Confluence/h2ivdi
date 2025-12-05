@@ -251,7 +251,7 @@ def process_runs(runs_file: str, index=None, resume: bool=False, **kwargs):
 
     if "CONFLUENCE_US" in os.environ:
         output_suffix = "h2ivdi"
-        kwargs["output_dir"] = "/mnt/data/flpe/hivdi"
+    #     kwargs["output_dir"] = "/mnt/data/flpe/hivdi"
 
     prepro_passed = 0
     run_passed = 0
