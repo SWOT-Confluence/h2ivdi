@@ -216,7 +216,7 @@ def process_runs(runs_file: str, index=None, resume: bool=False, **kwargs):
                 # fcntl.flock(status_table_file, fcntl.LOCK_EX)
                 # status_table_file.close()
 
-    output_suffix = "hivdi"
+    output_suffix = "h2ivdi"
     if index is not None:
         if isinstance(index, list):
             runs_indices = index
@@ -225,7 +225,6 @@ def process_runs(runs_file: str, index=None, resume: bool=False, **kwargs):
         for index in runs_indices:
             if index < 0 or index >= len(runs_list):
                 raise RuntimeError("Wrong run index: %i (must be in [0, %i[)" % (index, len(runs_list)))
-        output_suffix = "hivdi"
 
     elif "AWS_BATCH_JOB_ARRAY_INDEX" in os.environ:
 
@@ -248,10 +247,11 @@ def process_runs(runs_file: str, index=None, resume: bool=False, **kwargs):
             raise RuntimeError("Wrong run index: %i (must be in [0, %i[)" % (index, len(runs_list)))
         runs_indices = [index]
         output_suffix = "hivdi"
+        # TODO change output suffix to h2ivdi
 
     if "CONFLUENCE_US" in os.environ:
-        output_suffix = "h2ivdi"
-    #     kwargs["output_dir"] = "/mnt/data/flpe/hivdi"
+        output_suffix = "hivdi"
+        kwargs["output_dir"] = "/mnt/data/flpe/hivdi"
 
     prepro_passed = 0
     run_passed = 0
