@@ -131,7 +131,7 @@ class SwotCaseProcessor(CaseProcessor):
 
         return 0
 
-    def postpro(self, output_dir="/mnt/data/output", suffix="hivdi"):
+    def postpro(self, output_dir="/mnt/data/output", suffix="h2ivdi"):
 
         # Store results in rundir
         # TODO
@@ -167,7 +167,7 @@ class SwotCaseProcessor(CaseProcessor):
         
         return self._calibration_results, 0
 
-    def write_failed_output(self, output_dir="/mnt/data/output", suffix="hivdi", error_code=999):
+    def write_failed_output(self, output_dir="/mnt/data/output", suffix="h2ivdi", error_code=999):
 
         # Store results in rundir
         # TODO

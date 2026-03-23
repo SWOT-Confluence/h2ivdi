@@ -35,7 +35,7 @@ class SoSDataset:
                 raise ValueError("Unknown continent ID: %s" % continent_id)
         
         # Decide to load them from S3 or locally
-        if 'confluence' in fname:
+        if 'confluence' in fname and "CONFLUENCE_US" in os.environ:
             if download_sos is None:
                 raise RuntimeError("Module sos_read not found, cannot download from S3 bucket")
             download_sos(bucket_key=os.path.dirname(fname), sos_filepath = os.path.join('/tmp', os.path.basename(fname)))
