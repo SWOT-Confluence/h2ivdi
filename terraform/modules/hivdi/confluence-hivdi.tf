@@ -26,7 +26,7 @@ resource "aws_batch_job_definition" "generate_batch_jd_hivdi" {
       },
       {
         "sourceVolume": "flpe",
-        "containerPath": "/mnt/data/output",
+        "containerPath": "/mnt/data/flpe",
         "readOnly": false
       }
     ],
@@ -42,7 +42,7 @@ resource "aws_batch_job_definition" "generate_batch_jd_hivdi" {
         "name": "flpe",
         "efsVolumeConfiguration": {
           "fileSystemId": "${data.aws_efs_file_system.aws_efs_flpe.file_system_id}",
-          "rootDirectory": "/hivdi"
+          "rootDirectory": "/"
         }
       }
     ]
