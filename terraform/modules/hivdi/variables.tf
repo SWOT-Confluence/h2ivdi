@@ -25,6 +25,12 @@ variable "environment" {
   description = "The environment in which to deploy to"
 }
 
+variable "image_tag" {
+  type        = string
+  description = "The container image tag to utilize"
+  default     = "latest"
+}
+
 variable "prefix" {
   type        = string
   description = "Prefix to add to all AWS resources as a unique identifier"
