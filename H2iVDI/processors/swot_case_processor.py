@@ -58,15 +58,21 @@ class SwotCaseProcessor(CaseProcessor):
         # Load dataset
             # def __init__(self, set_def, input_dir: str, output_dir: str):
         self._data = L2RiverInferenceDataset(set_def=self._set_def, input_dir=self._input_dir, output_dir=self._output_dir,
-                                             internal_data_correction=self._options["internal-data-correction"])
+                                             internal_data_correction=self._options["internal-data-correction"],
+                                             slope_correction=self._options["slope-correction"])
         # print(self._data, 'here is data')
         error_code = self._data.load(self._set_def, self._input_dir, self._output_dir, self._s3_path)
         if error_code != 0: return error_code
 
         # Compute effective section
+        # print("options:", self._options)
+        if "section-model" in self._options:
+            section_model = self._options["section-model"]
+        else:
+            section_model = "hypso3v1"
         if self._data.reach.nt > 0:
             self._logger.info("- Compute effective sections:")
-            self._data.reach.compute_effective_sections()
+            self._data.reach.compute_effective_sections(section_model)
             if self._logger._debug_level > 0:
                 cmap, norm = mcolors.from_levels_and_colors([0.5, 1.5, 2.5, 3.5], ['green', 'orange', 'red'])
                 for r in range(0, self._data.reach.H.shape[1]):
@@ -104,16 +110,21 @@ class SwotCaseProcessor(CaseProcessor):
         # Create chain parameters
         parameters = {"model": "swst3lfb",
                       "run_mode": self._options["run-mode"],
-                      "q0_method": "optim",
+                      "q0_method": "low-froude",
                       "calibrate_sigma_obs": False,
                       "plots": {"inference": True,
                                 "validation": False}}
+        if "model" in self._options:
+            parameters["model"] = self._options["model"]
+        if "q0-method" in self._options:
+            parameters["q0_method"] = self._options["q0-method"]
         if np.isnan(self._data._reach_obs._QmeanModel):
             self._logger.debug("- Set Qin method to low-froude (QMeanModel is NaN)")
             parameters["q0_method"] = "low-froude"
 
         # Create chain
         chain = BayesianChain(self._data.reach, parameters)
+        self._chain = chain
 
         # Calibration
         self._calibration_results, error_code = chain.calibrate(rundir=self._rundir)

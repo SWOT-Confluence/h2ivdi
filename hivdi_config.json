@@ -1,0 +1,8 @@
+{
+    "run-mode": "constrained",
+    "internal-data-correction": false,
+    "model": "swst3lfb",
+    "section-model": "hypso3v1",
+    "slope-correction": "none",
+    "q0-method": "low-froude-shape"
+}

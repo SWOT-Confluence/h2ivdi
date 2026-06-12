@@ -11,9 +11,12 @@ from .swot_reach_dataset import SwotReachDataset
 
 class L2RiverInferenceDataset(L2RiverObservations):
     
-    def __init__(self, set_def, input_dir: str, output_dir: str, internal_data_correction=True):
+    def __init__(self, set_def, input_dir: str, output_dir: str, internal_data_correction=True, slope_correction="none",
+                 section_model="hypso3-1"):
         super().__init__()
         self._internal_data_correction = internal_data_correction
+        self._slope_correction = slope_correction
+        self._section_model = section_model
 
         ## Load dataset
         #self.load(set_def, input_dir, output_dir)
@@ -121,6 +124,7 @@ class L2RiverInferenceDataset(L2RiverObservations):
         self._reach_obs._valid = swot.reach["valid"]
         self._cycles = swot.reach["cycle"][self._reach_obs._valid]
         self._node_obs._t[:] = swot.reach["t"][self._reach_obs._valid]
+        self._node_obs._x[:] = sword._node_data["dist_out"][:]
         self._node_obs._H[:, :] = swot.nodes["H"][self._reach_obs._valid, :]
         self._node_obs._W[:, :] = swot.nodes["W"][self._reach_obs._valid, :]
         reach_length = sword._reach_data["reach_length"]
@@ -152,6 +156,11 @@ class L2RiverInferenceDataset(L2RiverObservations):
         self._logger.info("- Set dimensions: nt=%i, nr=%i, nn=%i" % (self._reach_obs.nt, self._reach_obs.nx, self._node_obs.nx))
         self._logger.info("  - reach scale: nt=%i, nx=%i" % (self._reach_obs.nt, self._reach_obs.nx))
         self._logger.info("  - node scale : nt=%i, nx=%i" % (self._node_obs.nt, self._node_obs.nx))
+
+        if self._slope_correction == "mean":
+            self._reach_obs._S[:, 0] = np.mean(self._reach_obs._S[:, 0])
+            self._reach_obs._S[:, 1] = np.mean(self._reach_obs._S[:, 1])
+            
 
         self._initial_reach_count = 1
 

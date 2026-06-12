@@ -249,7 +249,7 @@ class Bayesian2StepsChain(InferenceChain):
 
         # Check sample sizes
         if not "sample_sizes" in self._parameters:
-            self._parameters["sample_sizes"] = [50, 50]
+            self._parameters["sample_sizes"] = [20, 20]
 
         # Create model
         if "model" in self._parameters:

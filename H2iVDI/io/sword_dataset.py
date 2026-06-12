@@ -32,7 +32,8 @@ class SwordDataset:
                             "dist_out": reaches.dist_out.values[selection]}
         
         # Sort data py decreasing dist_out
-        sorted_indices = np.argsort(self._node_data["dist_out"])[::-1]
+        # sorted_indices = np.argsort(self._node_data["dist_out"])[::-1]
+        sorted_indices = np.argsort(self._node_data["dist_out"])
         self._node_data["node_id"] = self._node_data["node_id"][sorted_indices]
         self._node_data["reach_id"] = self._node_data["reach_id"][sorted_indices]
         self._node_data["dist_out"] = self._node_data["dist_out"][sorted_indices]

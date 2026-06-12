@@ -288,6 +288,12 @@ def process_runs(runs_file: str, index=None, resume: bool=False, **kwargs):
             swot_options = kwargs["swot_options"]
             options = {"run-mode": swot_options["mode"],
                        "internal-data-correction": swot_options["internal-data-correction"]}
+            if "model" in swot_options:
+                options["model"] = swot_options["model"]
+            if "slope-correction" in swot_options:
+                options["slope-correction"] = swot_options["slope-correction"]
+            if "q0-method" in swot_options:
+                options["q0-method"] = swot_options["q0-method"]
             processor = SwotCaseProcessor(run_def, options, kwargs["input_dir"], kwargs["output_dir"], kwargs["s3_path"])
 
         elif data_type == "pepsi":
@@ -419,7 +425,7 @@ if __name__ == "__main__":
     parser.add_argument("-i", dest="run_index",
                         type=int, help="Index of run in runs_file")
     parser.add_argument("-m", dest="run_mode",
-                        type=str, default="unconstrained", choices=["constrained", "unconstrained"],
+                        type=str, default="constrained", choices=["constrained", "unconstrained"],
                         help="Run mode (SWOT)")
     parser.add_argument("--log-file", dest="log_file", type=str,
                         default=None,
@@ -433,11 +439,14 @@ if __name__ == "__main__":
     parser.add_argument("--status-table", dest="status_table", type=str,
                         default=None,
                         help="Path to the run status table file")
+    parser.add_argument("--model", dest="model", type=str, default="swst3lfb",
+                        choices=["dassflow1dst31", "swst3lfb"],
+                        help="Internal hydraulic model")
     parser.add_argument("--debug-level", dest="debug_level", type=int,
                         choices=[0, 1, 2], default=0,
                         help="Set debug level (0=debug disabled)")
-    parser.add_argument("--disable-data-correction", dest="internal_data_correction", action="store_false",
-                        help="Disable internal data corrections (SWOT)")
+    parser.add_argument("--internal-data-correction", dest="internal_data_correction", action="store_true",
+                        help="Enable internal data corrections (SWOT)")
     parser.add_argument("--resume", action="store_true",
                         help="Enable resume mode")
     parser.add_argument("--retry-failed", dest="retry_failed", action="store_true",
@@ -457,7 +466,30 @@ if __name__ == "__main__":
 
 
     # Perform runs
+    swot_options = {"mode": args.run_mode, 
+                    "internal-data-correction": args.internal_data_correction,
+                    "model": args.model,
+                    "slope-correction": "none"}
+    
+    logger.info("-" * 40)
+    logger.info("Configuration:")
+    logger.info("-" * 40)
+    if "HIVDI_CONFIG_FILE" in os.environ:
+        config_file = os.environ["HIVDI_CONFIG_FILE"]
+        if not os.path.isfile(config_file):
+            raise ValueError("Config file not found: %s" % config_file)
+        logger.info("Using configuration file: %s" % config_file)
+        with open(config_file, "r") as fp:
+            swot_options = json.load(fp)
+        swot_options["mode"] = args.run_mode
+    else:
+        logger.info("Using default configuration")
+    logger.info("Options:")
+    for key in swot_options:
+        logger.info("- %s: %s" % (key, str(swot_options[key])))
+    logger.info("-" * 40 + "\n")
+    
     process_runs(args.runs_file, index=args.run_index, input_dir=args.input_dir, output_dir=args.output_dir,
                  status_table=args.status_table, resume=args.resume, s3_path=args.s3_path, 
-                 update_table=args.retry_failed, swot_options={"mode": args.run_mode, "internal-data-correction": args.internal_data_correction})
+                 update_table=args.retry_failed, swot_options=swot_options)
 
