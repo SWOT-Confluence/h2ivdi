@@ -18,7 +18,7 @@ COPY ./pyproject.toml /app/H2iVDI/pyproject.toml
 COPY ./README.md /app/H2iVDI/README.md
 COPY ./requirements.txt /app/H2iVDI/requirements.txt
 COPY ./setup.py /app/H2iVDI/setup.py
-COPY ./hivdi_config.json /app/H2iVDI/hivdi_config.json
+COPY ./hivdi_config.json /app/H2iVDI/master_config.json
 WORKDIR /app/H2iVDI
 RUN python3 -m venv /app/venv
 RUN /app/venv/bin/pip -v install .

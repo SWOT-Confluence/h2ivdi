@@ -474,11 +474,16 @@ if __name__ == "__main__":
     logger.info("-" * 40)
     logger.info("Configuration:")
     logger.info("-" * 40)
-    if "HIVDI_CONFIG_FILE" in os.environ:
+    config_file = None
+    if os.path.isfile("master_config.json"):
+        config_file = "master_config.json"
+        logger.info("Using MASTER configuration file")
+    elif "HIVDI_CONFIG_FILE" in os.environ:
         config_file = os.environ["HIVDI_CONFIG_FILE"]
+        logger.info("Using ENV configuration file: %s" % config_file)
+    if config_file is not None:
         if not os.path.isfile(config_file):
             raise ValueError("Config file not found: %s" % config_file)
-        logger.info("Using configuration file: %s" % config_file)
         with open(config_file, "r") as fp:
             swot_options = json.load(fp)
         swot_options["mode"] = args.run_mode

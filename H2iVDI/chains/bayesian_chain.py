@@ -66,8 +66,8 @@ class BayesianChain(InferenceChain):
                                      "Q_ci": np.ones((2, self._data.nt)) * np.nan}}
             return results, error_code
 
-        if rundir is not None:
-            self._write_trace_(os.path.join(rundir, "mc_trace.nc"), trace)
+        # if rundir is not None:
+        #     self._write_trace_(os.path.join(rundir, "mc_trace.nc"), trace)
         if np.all(np.ravel(np.isnan(trace["cost"]))):
             self._logger.error("All NaN cost detected")
         if np.any(np.ravel(np.isnan(trace["cost"]))):
@@ -189,6 +189,7 @@ class BayesianChain(InferenceChain):
         if l is None:
             self._likelihood.set_sigma(sigma_obs)
             lh = self._likelihood.likelihood_from_cost(nt*nx, trace["cost"])
+            lh = self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"])
         else:
             lh = np.exp(-2**l * self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
         if np.any(np.ravel(np.isnan(lh))):
@@ -512,6 +513,7 @@ class BayesianChain(InferenceChain):
                 choice = input()
 
             cost[i, j] = model.cost(Qin[i, j, :], data)
+            # print(i, j, "cost=", cost[i, j])
 
         trace = {"h0": h0,
                  "k0": k0,
@@ -674,12 +676,13 @@ class BayesianChain(InferenceChain):
         # print("llh=", -self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
         # lh = np.exp(-self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
         lh = self._likelihood.likelihood_from_cost(nt*nx, trace["cost"])
+        # lh = self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"])
 
         C_post = np.sum(np.ravel(lh * trace["prior_pdf"]))
         # print("sigma_obs=%f, C_post=%12.5e, cost=%12.5e" % (sigma_obs, C_post, np.mean(trace["cost"].flatten())))
 
-        print("TEST: m=%f, in=%f" % (priors["q0"]._scale, np.mean(trace["Qin"].flatten())))
-        print(priors["q0"]._scale)
+        # print("TEST: m=%f, in=%f" % (priors["q0"]._scale, np.mean(trace["Qin"].flatten())))
+        # print(priors["q0"]._scale)
         qm_prior = np.zeros(self._data.H.shape[0])
         for it in range(0, self._data.H.shape[0]):
             qm_prior[it] = np.sum(np.ravel(trace["Qin"][:, :, it]) * np.ravel(trace["prior_pdf"]))
