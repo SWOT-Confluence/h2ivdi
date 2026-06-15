@@ -6,7 +6,7 @@ import xarray
 
 import matplotlib.pyplot as plt
 
-from H2iVDI.core import error_code_from_string
+from H2iVDI.core import error_code_from_string, filtering_m1
 
 class SwotReachDataset:
 
@@ -18,7 +18,8 @@ class SwotReachDataset:
         self._reach_data = None
         self._model_data = None
 
-    def load_from_nc_file(self, fname: str, cycle_attr="observations", remove_missing_data=True, correct_with_nodes=True, 
+    def load_from_nc_file(self, fname: str, cycle_attr="observations", 
+                          remove_missing_data=True, correct_with_nodes=True, node_filtering=None,
                           enforce_node_slopes=True, max_q=2, include_details=False, sword=None):
 
         # Check file exists
@@ -41,6 +42,11 @@ class SwotReachDataset:
         # print("SLOPE2:", reach_S)
         nt = info.nt.values
 
+        if node_filtering == "method-1":
+            wsef = self._node_filtering_method1_(nodes, sword)
+        else:
+            wsef = nodes.wse
+
         if correct_with_nodes:
             if not sword:
                 raise ValueError("'sword' must be set for correcting reach data with nodes")
@@ -56,7 +62,7 @@ class SwotReachDataset:
             for it in range(0, reach.wse.size):
                 # print("sword._reach_data[dist_out]=", sword._reach_data["dist_out"])
                 # choice = input()
-                Hn = nodes.wse.values[:, it]
+                Hn = wsef[:, it]
                 node_id_swot = nodes.node_id.values
                 indices_reordering = np.argsort(node_id_swot)[::-1]
                 # print("node_id(SWOT) = ", node_id_swot[indices_reordering], len(node_id_swot))
@@ -162,8 +168,9 @@ class SwotReachDataset:
             self._reach_data["valid_details"] = valid_details
 
         # Retrieve node data
-        self._nodes_data = {"H": nodes.wse.values.T,
-                            "W": nodes.width.values.T}
+        self._nodes_data = {"H": wsef.T,
+                            "W": nodes.width.values.T,
+                            "dates": dates}
 
         return 0
 
@@ -195,3 +202,15 @@ class SwotReachDataset:
 
         return 0
 
+    def _node_filtering_method1_(self, nodes, sword):
+
+        xn = sword._node_data["dist_out"]
+
+        wsef = np.ones_like(nodes.wse)
+
+        for it in range(0, nodes.wse.shape[1]):
+
+            wse = nodes.wse[:, it]
+            wsef[:, it] = filtering_m1(xn, wse, plot=False)
+
+        return wsef

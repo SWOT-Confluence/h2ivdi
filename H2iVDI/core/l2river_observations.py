@@ -320,9 +320,10 @@ class L2RiverScaleObservations:
         for r in tqdm.tqdm(range(0, self.H.shape[1])):
 
             self._logger.debugL2("- Compute effective (rectangular) section for reach %i/%i" % (r+1, self.H.shape[1]))
-            self._He[:, r] = np.percentile(self._H[:, r], [20, 50, 80])
-            self._We[:, r] = np.percentile(self._W[:, r], 50)
-            self._Wr[:, r] = np.percentile(self._W[:, r], 50)
+            self._He[:, r] = np.nanpercentile(self._H[:, r], [20, 50, 80])
+            self._We[:, r] = np.nanpercentile(self._W[:, r], 50)
+            self._Wr[:, r] = np.nanpercentile(self._W[:, r], 50)
+            print(r, self._He[:, r], self._We[:, r])
 
 
             # Compute reconstructed (form effective sections) widths and "dry" flow area
@@ -334,7 +335,7 @@ class L2RiverScaleObservations:
                 dH = Hs[it] - Hs[it-1]
                 Wm = self._We[0, r]
                 self._dAr[isort[it], r] = self._dAr[isort[it-1], r] + dH * Wm
-            print(r, self._dAr[isort[:], r])
+            # print(r, self._dAr[isort[:], r])
 
         # self.H0 = self.Hl[0, :]
         # self.W0 = self.Wl[0, :]

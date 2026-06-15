@@ -706,7 +706,7 @@ class BayesianChain(InferenceChain):
             if C_post > best_C_post:
                 best_sigma_obs = sigma_obs
                 best_C_post = C_post
-            print("sigma_obs=%f, C_post=%12.5e" % (sigma_obs, C_post))
+            #print("sigma_obs=%f, C_post=%12.5e" % (sigma_obs, C_post))
         
         # print("auto_sigma_obs: l=%i" % l)
         self._logger.debug("C_post=%s (sigma_obs=%.3f)" % (str(best_C_post), best_sigma_obs))

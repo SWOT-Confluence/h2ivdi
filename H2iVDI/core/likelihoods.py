@@ -16,8 +16,11 @@ class GaussianLikelihood:
         return N * np.log(2.0 * np.pi) + N * np.log(self._sigma**2) + 1.0/self._sigma**2 * cost
 
     def likelihood_from_cost(self, N, cost):
+        # print(cost, N)
+        # print("P1", (2.0 * np.pi * self._sigma**2))
 
-        return (2.0 * np.pi * self._sigma**2)**(-0.5*N) * np.exp(-0.5/(self._sigma**2) * cost)
+        # return (2.0 * np.pi * self._sigma**2)**(-0.5*N) * np.exp(-0.5/(self._sigma**2) * cost)
+        return 1.0 / (2.0 * np.pi * self._sigma**2) * np.exp(-0.5/(self._sigma**2) * cost / N)
     
 
 def new_likelihood(name, **kwargs):

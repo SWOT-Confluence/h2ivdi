@@ -57,9 +57,13 @@ class SwotCaseProcessor(CaseProcessor):
 
         # Load dataset
             # def __init__(self, set_def, input_dir: str, output_dir: str):
+        if "node-filter" in self._options:
+            node_filter_method = self._options["node-filter"]
+        else:
+            node_filter_method = None
         self._data = L2RiverInferenceDataset(set_def=self._set_def, input_dir=self._input_dir, output_dir=self._output_dir,
                                              internal_data_correction=self._options["internal-data-correction"],
-                                             slope_correction=self._options["slope-correction"])
+                                             node_filtering=node_filter_method, slope_correction=self._options["slope-correction"])
         # print(self._data, 'here is data')
         error_code = self._data.load(self._set_def, self._input_dir, self._output_dir, self._s3_path)
         if error_code != 0: return error_code
@@ -70,17 +74,28 @@ class SwotCaseProcessor(CaseProcessor):
             section_model = self._options["section-model"]
         else:
             section_model = "hypso3v1"
-        if self._data.reach.nt > 0:
-            self._logger.info("- Compute effective sections:")
+        inference_scale = "reach"
+        if "inference-scale" in self._options:
+            inference_scale = self._options["inference-scale"]
+        if inference_scale == "reach":
+            scale_data = self._data.reach
+        else:
             self._data.reach.compute_effective_sections(section_model)
+            scale_data = self._data.node
+            scale_data._valid = self._data.reach._valid
+            scale_data._QmeanModel = self._data.reach._QmeanModel
+            self._data.node.compute_slopes()
+        if scale_data.nt > 0:
+            self._logger.info("- Compute effective sections:")
+            scale_data.compute_effective_sections(section_model)
             if self._logger._debug_level > 0:
                 cmap, norm = mcolors.from_levels_and_colors([0.5, 1.5, 2.5, 3.5], ['green', 'orange', 'red'])
-                for r in range(0, self._data.reach.H.shape[1]):
-                    plt.scatter(self._data.reach.H[:, r], self._data.reach.W[:, r], c=self._data.reach._qual[:, r], cmap=cmap, norm=norm, label="raw data")
-                    plt.plot(self._data.reach.He[:, r], self._data.reach.We[:, r], "b--", label="effective section")
-                    plt.plot(self._data.reach.He[0, r], self._data.reach.We[0, r], "bd")
-                    plt.plot(self._data.reach.He[1, r], self._data.reach.We[1, r], "rd")
-                    plt.plot(self._data.reach.He[2, r], self._data.reach.We[2, r], "gd")
+                for r in range(0, scale_data.H.shape[1]):
+                    plt.scatter(scale_data.H[:, r], scale_data.W[:, r], c=scale_data._qual[:, r], cmap=cmap, norm=norm, label="raw data")
+                    plt.plot(scale_data.He[:, r], scale_data.We[:, r], "b--", label="effective section")
+                    plt.plot(scale_data.He[0, r], scale_data.We[0, r], "bd")
+                    plt.plot(scale_data.He[1, r], scale_data.We[1, r], "rd")
+                    plt.plot(scale_data.He[2, r], scale_data.We[2, r], "gd")
                     if len(self._reaches_id) == 1:
                         if r == 0:
                             plt.title("%s - upstream" % self._reaches_id[0])
@@ -123,7 +138,13 @@ class SwotCaseProcessor(CaseProcessor):
             parameters["q0_method"] = "low-froude"
 
         # Create chain
-        chain = BayesianChain(self._data.reach, parameters)
+        inference_scale = "reach"
+        if "inference-scale" in self._options:
+            inference_scale = self._options["inference-scale"]
+        if inference_scale == "reach":
+            chain = BayesianChain(self._data.reach, parameters)
+        elif inference_scale == "node":
+            chain = BayesianChain(self._data.node, parameters)
         self._chain = chain
 
         # Calibration

@@ -11,10 +11,11 @@ from .swot_reach_dataset import SwotReachDataset
 
 class L2RiverInferenceDataset(L2RiverObservations):
     
-    def __init__(self, set_def, input_dir: str, output_dir: str, internal_data_correction=True, slope_correction="none",
+    def __init__(self, set_def, input_dir: str, output_dir: str, internal_data_correction=True, node_filtering=None, slope_correction="none",
                  section_model="hypso3-1"):
         super().__init__()
         self._internal_data_correction = internal_data_correction
+        self._node_filtering = node_filtering
         self._slope_correction = slope_correction
         self._section_model = section_model
 
@@ -103,7 +104,8 @@ class L2RiverInferenceDataset(L2RiverObservations):
         self._logger.debug("Load SWOT data")
         swot_file = os.path.join(input_dir, "swot", set_def["swot"])
         swot = SwotReachDataset()
-        error_code = swot.load_from_nc_file(swot_file, cycle_attr=cycle_attr, correct_with_nodes=self._internal_data_correction, remove_missing_data=True, sword=sword)
+        error_code = swot.load_from_nc_file(swot_file, cycle_attr=cycle_attr, correct_with_nodes=self._internal_data_correction,
+                                            node_filtering=self._node_filtering, remove_missing_data=True, sword=sword)
         if error_code != 0: return error_code
         error_code = swot.check()
         if error_code != 0: return error_code
@@ -123,6 +125,7 @@ class L2RiverInferenceDataset(L2RiverObservations):
         self._reach_obs._qual = np.zeros_like(self._reach_obs._H, dtype=int)
         self._reach_obs._valid = swot.reach["valid"]
         self._cycles = swot.reach["cycle"][self._reach_obs._valid]
+        self._node_obs._dates = swot.nodes["dates"]
         self._node_obs._t[:] = swot.reach["t"][self._reach_obs._valid]
         self._node_obs._x[:] = sword._node_data["dist_out"][:]
         self._node_obs._H[:, :] = swot.nodes["H"][self._reach_obs._valid, :]

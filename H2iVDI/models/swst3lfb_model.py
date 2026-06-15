@@ -53,15 +53,27 @@ class SWST3LFBModel:
         return H
 
     def cost(self, Qin, data):
+        # print("Qin=", Qin)
         H = self.solve(Qin)
-        residuals = np.ravel(H - data.H)
-        cost = np.sum(residuals[np.isfinite(np.ravel(data.H))]**2)
+        # print("H=", H)
+        valid = np.all(np.isfinite(H), axis=1)
+        # print(H.shape, valid.shape)
+        Hest = H[valid, :].flatten()
+        Hobs = data.H[valid, :].flatten()
+        residuals = np.ravel(Hest - Hobs)
+        # print("residuals=", residuals)
+        cost = np.sum(residuals[np.isfinite(Hobs)]**2)
+        # print("cost=", cost)
+        # choice = input()
+        # residuals = np.ravel(H - data.H)
+        # cost = np.sum(residuals[np.isfinite(np.ravel(data.H))]**2)
         if np.isnan(cost):
             cost = 1e+99
-        if cost < 1e-18:
-            print(H)
-            print(data.H)
-            choice = input()
+            #print('NANANAN')
+        # if cost < 1e-18:
+        #     print(H)
+        #     print(data.H)
+        #     choice = input()
         return cost
 
     def set_data(self, data):
