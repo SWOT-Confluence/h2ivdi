@@ -14,7 +14,7 @@ from H2iVDI.core.metrics import compute_metric
 from H2iVDI.models import new_model
 from .inference_chain import InferenceChain
 
-class BayesianChain(InferenceChain):
+class MCMCChain(InferenceChain):
 
     def __init__(self, data, parameters):
 
@@ -26,7 +26,7 @@ class BayesianChain(InferenceChain):
 
     def calibrate(self, rundir: str=None):
 
-        self._logger.debug("[START] Bayesian chain calibration")
+        self._logger.debug("[START] MCMC chain calibration")
 
         if self._model is None:
             self._apply_parameters_()
@@ -48,7 +48,7 @@ class BayesianChain(InferenceChain):
             return results, error_code_from_string("no_valid_observation_profile")
 
         # STEP 1: Sample h0, k0 (Low-Froude Qin method)
-        self._logger.info("Bayesian calibration")
+        self._logger.info("MCMC calibration")
         self._logger.debug("- Sample variables space")
         self._logger.debug("- Qin method: %s" % self._parameters["q0_method"])
         trace, error_code = self._sample_(*tuple(self._parameters["sample_sizes"]), rundir=rundir, qin_method=self._parameters["q0_method"])
@@ -66,8 +66,8 @@ class BayesianChain(InferenceChain):
                                      "Q_ci": np.ones((2, self._data.nt)) * np.nan}}
             return results, error_code
 
-        # if rundir is not None:
-        #     self._write_trace_(os.path.join(rundir, "mc_trace.nc"), trace)
+        if rundir is not None:
+            self._write_trace_(os.path.join(rundir, "mc_trace.nc"), trace)
         if np.all(np.ravel(np.isnan(trace["cost"]))):
             self._logger.error("All NaN cost detected")
         if np.any(np.ravel(np.isnan(trace["cost"]))):
@@ -179,56 +179,30 @@ class BayesianChain(InferenceChain):
         h0_prior = np.sum(np.ravel(trace["h0"]) * np.ravel(trace["prior_pdf"])) / C_prior
         k0_prior = np.sum(np.ravel(trace["k0"]) * np.ravel(trace["prior_pdf"])) / C_prior
         qm_prior = np.zeros(self._data.H.shape[0])
-        A0_prior = h0_prior * self._model._h1 * self._data._We[0]
-        n_prior = 1.0 / (k0_prior * self._model._k1)
-        for it in range(0, self._data.H.shape[0]):
-            qm_prior[it] = np.sum(np.ravel(trace["Qin"][:, :, it]) * np.ravel(trace["prior_pdf"]))
-        qm_prior /= C_prior
         # print("COST:", np.min(np.ravel(trace["cost"]))), np.nanmin(np.ravel(trace["cost"]))
         # lh = np.exp(-2**l * (trace["cost"] / np.min(np.ravel(trace["cost"])) - 1)**2)
         if l is None:
             self._likelihood.set_sigma(sigma_obs)
             lh = self._likelihood.likelihood_from_cost(nt*nx, trace["cost"])
-            lh = self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"])
         else:
             lh = np.exp(-2**l * self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
         if np.any(np.ravel(np.isnan(lh))):
             self._logger.error("NaN Likelihood detected")
         C_post = np.sum(np.ravel(lh * trace["prior_pdf"]))
         # print("C_post=%12.5e" % C_post)
-        if C_post > 1.0e-15:
-            h0_post = np.sum(np.ravel(trace["h0"]) * np.ravel(lh * trace["prior_pdf"])) / C_post
-            k0_post = np.sum(np.ravel(trace["k0"]) * np.ravel(lh * trace["prior_pdf"])) / C_post
-            qm_post = np.zeros(self._data.H.shape[0])
-            for it in range(0, self._data.H.shape[0]):
-                qm_post[it] = np.sum(np.ravel(trace["Qin"][:, :, it]) * np.ravel(lh * trace["prior_pdf"]))
-                #qm[it] = np.sum(100.0 * np.ravel(tracek["prior_pdf"]))
-            qm_post /= C_post
-            A0_post = h0_post * self._model._h1 * self._data._We[0]
-            n_post = 1.0 / (k0_post * self._model._k1)
-        else:
-            h0_post = h0_prior
-            k0_post = k0_prior
-            qm_post = qm_prior
-            A0_post = h0_post * self._model._h1 * self._data._We[0]
-            n_post = 1.0 / (k0_post * self._model._k1)
-            # results = {"model": self._model.name,
-            #            "error_code": error_code_from_string("null_cprior_or_cpost"),
-            #            "error_string": "Null C_prior or C_post",
-            #            "status": False,
-            #            "prior": {"A0": A0_prior,
-            #                      "n": n_prior,
-            #                      "Q": qm_prior},
-            #            "posterior": {"A0": np.ones(self._data.nx) * np.nan,
-            #                          "n": np.ones(self._data.nx) * np.nan,
-            #                          "Q": np.ones(self._data.nt) * np.nan,
-            #                          "Q_ci": np.ones((2, self._data.nt)) * np.nan}}
-            # return results, error_code_from_string("null_cprior_or_cpost")            
-
+        h0_post = np.sum(np.ravel(trace["h0"]) * np.ravel(lh * trace["prior_pdf"])) / C_post
+        k0_post = np.sum(np.ravel(trace["k0"]) * np.ravel(lh * trace["prior_pdf"])) / C_post
+        qm_post = np.zeros(self._data.H.shape[0])
+        for it in range(0, self._data.H.shape[0]):
+            qm_prior[it] = np.sum(np.ravel(trace["Qin"][:, :, it]) * np.ravel(trace["prior_pdf"]))
+            qm_post[it] = np.sum(np.ravel(trace["Qin"][:, :, it]) * np.ravel(lh * trace["prior_pdf"]))
+            #qm[it] = np.sum(100.0 * np.ravel(tracek["prior_pdf"]))
+        qm_prior /= C_prior
+        qm_post /= C_post
         trace["lh"] = lh
-        # self._logger.debug("  - h0(0):%f, h0(*): %f" % (h0_prior, h0_post))
-        # self._logger.debug("  - k0(0):%f, k0(*): %f" % (k0_prior, k0_post))
-        # self._logger.debug("  - q0(0):%f, q0(*): %f" % (np.mean(qm_prior), np.mean(qm_post)))
+        self._logger.debug("  - h0(0):%f, h0(*): %f" % (h0_prior, h0_post))
+        self._logger.debug("  - k0(0):%f, k0(*): %f" % (k0_prior, k0_post))
+        self._logger.debug("  - q0(0):%f, q0(*): %f" % (np.mean(qm_prior), np.mean(qm_post)))
         self._logger.info("- Prior:")
         self._logger.info("  - h0(0): %.2f" % h0_prior)
         self._logger.info("  - k0(0): %.2f" % k0_prior)
@@ -255,22 +229,23 @@ class BayesianChain(InferenceChain):
             k0_target = None
 
         # Compute confidence interval
-        if C_post > 1e-15:
-            post_pdf = np.ravel(lh * trace["prior_pdf"]) / C_post
-            isort = np.argsort(post_pdf)
-            post_cdf = np.cumsum(post_pdf[isort])
-            selected67 = np.ravel(np.argwhere(post_cdf > 0.3))
-            selected95 = np.ravel(np.argwhere(post_cdf > 0.05))
-            qm_post_95 = np.zeros((2, self._data.H.shape[0]))
-            shape01 = trace["Qin"].shape[0] * trace["Qin"].shape[1]
-            shape2 = trace["Qin"].shape[2]
-            Qin_selected = trace["Qin"].reshape((shape01, shape2))[isort[selected95[0]:], :]
-            qm_post_95[0, :] = np.min(Qin_selected, axis=0)
-            qm_post_95[1, :] = np.max(Qin_selected, axis=0)
-        else:
-            qm_post_95 = np.zeros((2, self._data.H.shape[0]))
-            qm_post_95[0, :] = np.nan
-            qm_post_95[1, :] = np.nan
+        post_pdf = np.ravel(lh * trace["prior_pdf"]) / C_post
+        isort = np.argsort(post_pdf)
+        post_cdf = np.cumsum(post_pdf[isort])
+        # print(post_cdf[-1])
+        # plt.plot(np.cumsum(post_pdf[isort]), "k-")
+        selected67 = np.ravel(np.argwhere(post_cdf > 0.3))
+        selected95 = np.ravel(np.argwhere(post_cdf > 0.05))
+        # selected = isort[post_pdf[isort] > 0.05]
+        # plt.axvline(selected67[0], c="b", ls="--")
+        # plt.axvline(selected95[0], c="orange", ls="--")
+        # plt.show()
+        qm_post_95 = np.zeros((2, self._data.H.shape[0]))
+        shape01 = trace["Qin"].shape[0] * trace["Qin"].shape[1]
+        shape2 = trace["Qin"].shape[2]
+        Qin_selected = trace["Qin"].reshape((shape01, shape2))[isort[selected95[0]:], :]
+        qm_post_95[0, :] = np.min(Qin_selected, axis=0)
+        qm_post_95[1, :] = np.max(Qin_selected, axis=0)
 
         # Make plots
         if np.any(np.array([self._parameters["plots"][key] for key in self._parameters["plots"]])) and rundir is not None:
@@ -289,6 +264,11 @@ class BayesianChain(InferenceChain):
         #     self._plot_validation_(qm_prior, qm_post, plot_file, qm_post_ci=qm_post_95)
         self._logger.debug("[ END ] Bayesian chain calibration")
 
+        # Compute manning and A0 priors and posteriors
+        A0_prior = h0_prior * self._model._h1 * self._data._We[0]
+        n_prior = 1.0 / (k0_prior * self._model._k1)
+        A0_post = h0_post * self._model._h1 * self._data._We[0]
+        n_post = 1.0 / (k0_post * self._model._k1)
 
         status = np.isfinite(C_prior) and np.isfinite(C_post)
         if status == True:
@@ -321,7 +301,7 @@ class BayesianChain(InferenceChain):
 
         # Check sample sizes
         if not "sample_sizes" in self._parameters:
-            self._parameters["sample_sizes"] = [20, 20]
+            self._parameters["sample_sizes"] = [50, 50]
 
         # Set q0 computation method
         if not "q0_method" in self._parameters:
@@ -352,7 +332,7 @@ class BayesianChain(InferenceChain):
                 if self._parameters["run_mode"] == "unconstrained":
                     q0_bounds = (0.2, 5.0)
                 elif self._parameters["run_mode"] == "constrained":
-                    q0_bounds = (0.8, 1.2)
+                    q0_bounds = (0.4, 2.5)
                 else:
                     raise ValueError("Wrong run mode: %s" % self._parameters["run_mode"])
                 q0_prior = new_distribution("BetaScaled", "q0", a=2.0, b=5.5, scale=self._data._QmeanModel, bounds=q0_bounds)
@@ -396,7 +376,7 @@ class BayesianChain(InferenceChain):
                     q0_prior = new_distribution("BetaScaled", "q0", a=2.0, b=5.5, scale=self._data._QmeanModel, bounds=q0_bounds)
                 self._priors["q0"] = q0_prior
 
-    def _sample_(self, N: int, M: int, rundir: str=None, qin_method: str="low-froude"):
+    def _sample_(self, burn: int, samples: int, rundir: str=None, qin_method: str="low-froude"):
 
         data = self._data
         model = self._model
@@ -451,33 +431,6 @@ class BayesianChain(InferenceChain):
 
                 Qin[i, j, :] = np.nanmean(Qlf[i, j, :, :], axis=1)
 
-            elif qin_method == "low-froude-shape":
-        
-                Qlf[i, j, :, :] = model.compute_lowfroude_discharge()
-
-                # Check that Qlf are not all nan for some profiles
-                if np.any(np.all(np.isnan(Qlf[i, j, :, :]), axis=1)):
-                    if rundir is not None:
-                        for it in range(0, Qlf.shape[2]):
-                            if np.all(np.isnan(Qlf[i, j, it, :])):
-                                print("all nan Qlf for profile it=%i" % it)
-                                fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(12, 4))
-                                ax1.plot(data.H[it, :], "-.")
-                                ax1.set_ylabel("H")
-                                ax2.plot(data.W[it, :], "-.")
-                                ax2.set_ylabel("Wr")
-                                ax3.plot(data.S[it, :], "-.")
-                                ax3.set_ylabel("S")
-                                plt.savefig(os.path.join(rundir, "profile%04i.png") % it)
-                                plt.close(fig)
-
-                    self._logger.error("All nan Qlf detected for some profiles")
-                    return None, error_code_from_string("all_nan_Qlf_for_some_profiles")
-
-                Qin[i, j, :] = np.nanmean(Qlf[i, j, :, :], axis=1)
-                qbar = np.mean(Qin[i, j, :])
-                Qin[i, j, :] *= data._QmeanModel / qbar
-
             elif qin_method == "optim":
                 # print("Q0 bounds[1]:", priors["q0"].bounds)
                 # choice = input()
@@ -513,7 +466,6 @@ class BayesianChain(InferenceChain):
                 choice = input()
 
             cost[i, j] = model.cost(Qin[i, j, :], data)
-            # print(i, j, "cost=", cost[i, j])
 
         trace = {"h0": h0,
                  "k0": k0,
@@ -676,21 +628,11 @@ class BayesianChain(InferenceChain):
         # print("llh=", -self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
         # lh = np.exp(-self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"]))
         lh = self._likelihood.likelihood_from_cost(nt*nx, trace["cost"])
-        # lh = self._likelihood.loglikelihood_from_cost(nt*nx, trace["cost"])
-
         C_post = np.sum(np.ravel(lh * trace["prior_pdf"]))
         # print("sigma_obs=%f, C_post=%12.5e, cost=%12.5e" % (sigma_obs, C_post, np.mean(trace["cost"].flatten())))
-
-        # print("TEST: m=%f, in=%f" % (priors["q0"]._scale, np.mean(trace["Qin"].flatten())))
-        # print(priors["q0"]._scale)
-        qm_prior = np.zeros(self._data.H.shape[0])
-        for it in range(0, self._data.H.shape[0]):
-            qm_prior[it] = np.sum(np.ravel(trace["Qin"][:, :, it]) * np.ravel(trace["prior_pdf"]))
-
-
         best_sigma_obs = sigma_obs
         best_C_post = C_post
-
+        print("[0]sigma_obs=%f, C_post=%12.5e" % (best_sigma_obs, best_C_post))
         while C_post < 1e-15 and sigma_obs < 1.5:
             sigma_obs += 0.05
             # l = l - 1
@@ -706,10 +648,10 @@ class BayesianChain(InferenceChain):
             if C_post > best_C_post:
                 best_sigma_obs = sigma_obs
                 best_C_post = C_post
-            #print("sigma_obs=%f, C_post=%12.5e" % (sigma_obs, C_post))
+            print("sigma_obs=%f, C_post=%12.5e" % (sigma_obs, C_post))
         
         # print("auto_sigma_obs: l=%i" % l)
-        self._logger.debug("C_post=%s (sigma_obs=%.3f)" % (str(best_C_post), best_sigma_obs))
+        print("sigma_obs=%f, C_post=%12.5e" % (best_sigma_obs, best_C_post))
         return best_sigma_obs
 
     def _write_trace_(self, fname, trace):

@@ -119,7 +119,71 @@ class L2RiverScaleObservations:
                 dH = self._H[sorted_indices[its], ix] - self._H[sorted_indices[its-1], ix]
                 self._dA[sorted_indices[its], ix] = self._dA[sorted_indices[its-1], ix] + dH * Wm
 
-    def compute_effective_sections(self, nlevels=3):
+
+    def compute_effective_sections(self, section_model):
+
+        if section_model == "hypso3v1":
+            self._effective_sections_hypsov1_(nlevels=3)
+        elif section_model == "hypso3v2":
+            self._effective_sections_hypsov2_(nlevels=3)
+        elif section_model == "rect":
+            self._effective_sections_rectangular_()
+        else:
+            raise ValueError("Wrong section model: %s" % section_model)
+
+    def spatial_selection(self, selection):
+
+        # Select values in 1-dimensional variables
+        for variable in ["x"]:
+            values = getattr(self, "_%s" % variable)
+            if values is not None:
+                setattr(self, "_%s" % variable, values[selection])
+
+        # Select values in 2-dimensional variables
+        for variable in ["H", "W", "S", "K", "A", "Q", "He", "We"]:
+            values = getattr(self, "_%s" % variable)
+            if values is not None:
+                setattr(self, "_%s" % variable, values[:, selection])
+
+    def spatial_mean(self):
+
+        # Select values in 1-dimensional variables
+        for variable in ["x"]:
+            values = getattr(self, "_%s" % variable)
+            if values is not None:
+                setattr(self, "_%s" % variable, np.mean(values).reshape((1,)))
+
+        # Select values in 2-dimensional variables
+        for variable in ["H", "W", "S", "K", "A", "Q", "He", "We"]:
+            values = getattr(self, "_%s" % variable)
+            if values is not None:
+                # print("SPATIAL_MEAN: %s=%s" % (variable, values))
+                setattr(self, "_%s" % variable, np.mean(values, axis=1).reshape((-1, 1)))
+                # print("=>: %s" % str(getattr(self, "_%s" % variable)))
+
+    def time_selection(self, selection):
+
+        # Select values in 1-dimensional variables
+        for variable in ["t", "dates"]:
+            values = getattr(self, "_%s" % variable)
+            if values is not None:
+                setattr(self, "_%s" % variable, values[selection])
+
+        # Select values in 2-dimensional variables
+        for variable in ["H", "W", "S", "K", "A", "Q"]:
+            values = getattr(self, "_%s" % variable)
+            if values is not None:
+                setattr(self, "_%s" % variable, values[selection, :])
+
+    def compute_slopes(self):
+
+        self._S = np.zeros(self._H.shape)
+        self._S[:, 0] = (self._H[:, 0] - self._H[:, 1]) / np.abs(self._x[0] - self._x[1])
+        self._S[:, 1:-1] = (self._H[:, 0:-2] - self._H[:, 2:]) / np.abs(self._x[0:-2] - self._x[2:])
+        self._S[:, -1] = (self._H[:, -2] - self._H[:, -1]) / np.abs(self._x[-2] - self._x[-1])
+        self._S = np.maximum(self._S, 1e-8)
+
+    def _effective_sections_hypsov1_(self, nlevels=3):
         """ Compute dA (flow area above lowest cross-section)
         """
 
@@ -182,57 +246,100 @@ class L2RiverScaleObservations:
         # self.H0 = self.Hl[0, :]
         # self.W0 = self.Wl[0, :]
 
-    def spatial_selection(self, selection):
+    def _effective_sections_hypsov2_(self, nlevels=3):
+        """ Compute dA (flow area above lowest cross-section)
+        """
 
-        # Select values in 1-dimensional variables
-        for variable in ["x"]:
-            values = getattr(self, "_%s" % variable)
-            if values is not None:
-                setattr(self, "_%s" % variable, values[selection])
+        if self._H is None:
+            raise RuntimeError("Cannot compute effective without any observation")
 
-        # Select values in 2-dimensional variables
-        for variable in ["H", "W", "S", "K", "A", "Q", "He", "We"]:
-            values = getattr(self, "_%s" % variable)
-            if values is not None:
-                setattr(self, "_%s" % variable, values[:, selection])
+        self._He = np.ones((3, self.x.size)) * np.nan
+        self._We = np.ones((3, self.x.size)) * np.nan
+        self._Wr = np.ones_like(self._H) * np.nan
+        self._dAr = np.ones_like(self._H) * np.nan
+        for r in tqdm.tqdm(range(0, self.H.shape[1])):
 
-    def spatial_mean(self):
+            self._logger.debugL2("- Compute effective section for reach %i/%i" % (r+1, self.H.shape[1]))
+            Hs = self._H[:, r]
+            Ws = self._W[:, r]
+            isort = np.argsort(Hs)
+            Hs = Hs[isort]
+            Ws = Ws[isort]
 
-        # Select values in 1-dimensional variables
-        for variable in ["x"]:
-            values = getattr(self, "_%s" % variable)
-            if values is not None:
-                setattr(self, "_%s" % variable, np.mean(values).reshape((1,)))
+            if Hs.size == 1:
 
-        # Select values in 2-dimensional variables
-        for variable in ["H", "W", "S", "K", "A", "Q", "He", "We"]:
-            values = getattr(self, "_%s" % variable)
-            if values is not None:
-                # print("SPATIAL_MEAN: %s=%s" % (variable, values))
-                setattr(self, "_%s" % variable, np.mean(values, axis=1).reshape((-1, 1)))
-                # print("=>: %s" % str(getattr(self, "_%s" % variable)))
+                self._logger.debugL2("  - 1 observation, using rectangular section")
+                Hi = np.ones([Hs[0], Hs[0]+0.5, Hs[0]+1.0])
+                Wi = np.ones(3) * Ws[0]
 
-    def time_selection(self, selection):
+            elif Hs.size == 2:
 
-        # Select values in 1-dimensional variables
-        for variable in ["t", "dates"]:
-            values = getattr(self, "_%s" % variable)
-            if values is not None:
-                setattr(self, "_%s" % variable, values[selection])
+                self._logger.debugL2("  - %s observations, try linear regression")
 
-        # Select values in 2-dimensional variables
-        for variable in ["H", "W", "S", "K", "A", "Q"]:
-            values = getattr(self, "_%s" % variable)
-            if values is not None:
-                setattr(self, "_%s" % variable, values[selection, :])
+                # Try linear regression fit
+                Hi, Wi = self._linear_regression_fit_(Hs, Ws)
 
-    def compute_slopes(self):
+            else:
 
-        self._S = np.zeros(self._H.shape)
-        self._S[:, 0] = (self._H[:, 0] - self._H[:, 1]) / np.abs(self._x[0] - self._x[1])
-        self._S[:, 1:-1] = (self._H[:, 0:-2] - self._H[:, 2:]) / np.abs(self._x[0:-2] - self._x[2:])
-        self._S[:, -1] = (self._H[:, -2] - self._H[:, -1]) / np.abs(self._x[-2] - self._x[-1])
-        self._S = np.maximum(self._S, 1e-8)
+                Hi = np.percentile(Hs, [20, 50, 90])
+                Wi = np.percentile(Ws, [20, 50, 90])
+                plt.figure()
+                plt.plot(Hs, Ws, "r.")
+                plt.plot(Hi, Wi, "g--", marker=".")
+                plt.show()
+
+            if np.any(Wi < 0.1):
+                print(Wi)
+                raise RuntimeError("Wi < 0")
+
+            self._He[:, r] = Hi
+            self._We[:, r] = Wi
+
+            # Compute reconstructed (form effective sections) widths and "dry" flow area
+            self._Wr[:, r] = np.interp(Hs, Hi, Wi)
+            self._dAr[isort[0], r] = 0.0
+            for it in range(1, isort.size):
+                dH = Hs[it] - Hs[it-1]
+                Wm = 0.5 * (self._Wr[it, r] + self._Wr[it-1, r])
+                self._dAr[isort[it], r] = self._dAr[isort[it-1], r] + dH * Wm
+
+        # self.H0 = self.Hl[0, :]
+        # self.W0 = self.Wl[0, :]
+
+    def _effective_sections_rectangular_(self):
+        """ Compute dA (flow area above lowest cross-section)
+        """
+
+        if self._H is None:
+            raise RuntimeError("Cannot compute effective without any observation")
+
+        self._He = np.ones((3, self.x.size)) * np.nan
+        self._We = np.ones((3, self.x.size)) * np.nan
+        self._Wr = np.ones_like(self._H) * np.nan
+        self._dAr = np.ones_like(self._H) * np.nan
+        for r in tqdm.tqdm(range(0, self.H.shape[1])):
+
+            self._logger.debugL2("- Compute effective (rectangular) section for reach %i/%i" % (r+1, self.H.shape[1]))
+            self._He[:, r] = np.nanpercentile(self._H[:, r], [20, 50, 80])
+            self._We[:, r] = np.nanpercentile(self._W[:, r], 50)
+            self._Wr[:, r] = np.nanpercentile(self._W[:, r], 50)
+            print(r, self._He[:, r], self._We[:, r])
+
+
+            # Compute reconstructed (form effective sections) widths and "dry" flow area
+            Hs = self._H[:, r]
+            isort = np.argsort(Hs)
+            Hs = Hs[isort]
+            self._dAr[isort[0], r] = 0.0
+            for it in range(1, isort.size):
+                dH = Hs[it] - Hs[it-1]
+                Wm = self._We[0, r]
+                self._dAr[isort[it], r] = self._dAr[isort[it-1], r] + dH * Wm
+            # print(r, self._dAr[isort[:], r])
+
+        # self.H0 = self.Hl[0, :]
+        # self.W0 = self.Wl[0, :]
+
 
     def _piecewise_regression_fit_(self, Hs, Ws):
         
