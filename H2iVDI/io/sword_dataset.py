@@ -10,8 +10,8 @@ class SwordDataset:
     def load_from_nc_file(self, fname: str, reaches_selection: list=None):
 
         # Load nodes and reaches groups
-        nodes = xarray.open_dataset(fname, group="nodes", drop_variables=["river_name", "edit_flag"])
-        reaches = xarray.open_dataset(fname, group="reaches", drop_variables=["river_name", "edit_flag"])
+        nodes = xarray.open_dataset(fname, group="nodes", drop_variables=["river_name", "edit_flag", "version", "add_flag"])
+        reaches = xarray.open_dataset(fname, group="reaches", drop_variables=["river_name", "edit_flag", "river_name_local", "river_name_en", "version", "add_flag", "swot_obs_source"])
 
         # Retrieve node data
         if reaches_selection is not None:
