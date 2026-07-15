@@ -14,16 +14,20 @@ data "aws_efs_file_system" "aws_efs_flpe" {
 }
 
 data "aws_iam_role" "job_role" {
-  name = "${var.prefix}-batch-job-role"
+  count = var.iam_job_role_arn == null ? 1 : 0
+  name  = "${var.prefix}-batch-job-role"
 }
 
 data "aws_iam_role" "exe_role" {
-  name = "${var.prefix}-ecs-exe-task-role"
+  count = var.iam_execution_role_arn == null ? 1 : 0
+  name  = "${var.prefix}-ecs-exe-task-role"
 }
 
 # Local variables
 locals {
-  account_id = data.aws_caller_identity.current.account_id
+  account_id             = data.aws_caller_identity.current.account_id
+  iam_job_role_arn       = var.iam_job_role_arn != null ? var.iam_job_role_arn : data.aws_iam_role.job_role[0].arn
+  iam_execution_role_arn = var.iam_execution_role_arn != null ? var.iam_execution_role_arn : data.aws_iam_role.exe_role[0].arn
   default_tags = length(var.default_tags) == 0 ? {
     application : var.app_name,
     environment : var.environment,

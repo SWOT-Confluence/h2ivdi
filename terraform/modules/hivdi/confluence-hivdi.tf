@@ -5,8 +5,8 @@ resource "aws_batch_job_definition" "generate_batch_jd_hivdi" {
   container_properties  = <<CONTAINER_PROPERTIES
   {
     "image": "${local.account_id}.dkr.ecr.us-west-2.amazonaws.com/${var.prefix}-h2ivdi:${var.image_tag}",
-    "executionRoleArn": "${data.aws_iam_role.exe_role.arn}",
-    "jobRoleArn": "${data.aws_iam_role.job_role.arn}",
+    "executionRoleArn": "${local.iam_execution_role_arn}",
+    "jobRoleArn": "${local.iam_job_role_arn}",
     "fargatePlatformConfiguration": { "platformVersion": "LATEST" },
     "logConfiguration": {
       "logDriver" : "awslogs",
