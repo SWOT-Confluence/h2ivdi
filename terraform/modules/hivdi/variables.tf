@@ -35,3 +35,15 @@ variable "prefix" {
   type        = string
   description = "Prefix to add to all AWS resources as a unique identifier"
 }
+
+variable "iam_execution_role_arn" {
+  type        = string
+  description = "ARN of the ECS task execution IAM role. If not provided, looked up by name using var.prefix."
+  default     = null
+}
+
+variable "iam_job_role_arn" {
+  type        = string
+  description = "ARN of the Batch job IAM role. If not provided, looked up by name using var.prefix."
+  default     = null
+}
